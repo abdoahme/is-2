@@ -1619,6 +1619,36 @@
     const profitFromPeople = capital.filter(c=>c.profitLossType==="ربح من شخص").reduce((s,c)=>s+amount(c.profitLossAmount),0);
     const lossToPeople = capital.filter(c=>c.profitLossType==="خسارة لشخص").reduce((s,c)=>s+amount(c.profitLossAmount),0);
     const net = gross-expenseTotal+profitFromPeople-lossToPeople;
+    let comparisonData=null,comparisonLabel="";
+    if(reportYear!=="ALL"&&reportMonth!=="ALL"){
+      const prevDate=new Date(Number(reportYear),Number(reportMonth)-2,1);
+      const prevKey=prevDate.getFullYear()+"-"+String(prevDate.getMonth()+1).padStart(2,"0");
+      const prevCars=state.cars.filter(c=>String(c.date||"").startsWith(prevKey));
+      const prevSold=prevCars.filter(isSoldCar);
+      const prevRevenue=prevSold.reduce((sum,c)=>sum+amount(c.salePrice),0);
+      const prevCost=prevSold.reduce((sum,c)=>sum+amount(c.purchasePrice)+amount(c.prepCost),0);
+      const prevExpenses=state.expenses.filter(e=>String(e.date||"").startsWith(prevKey)).reduce((sum,e)=>sum+amount(e.amount),0);
+      const prevCapital=state.capital.filter(c=>String(c.date||"").startsWith(prevKey));
+      const prevNet=prevRevenue-prevCost-prevExpenses+prevCapital.filter(c=>c.profitLossType==="ربح من شخص").reduce((sum,c)=>sum+amount(c.profitLossAmount),0)-prevCapital.filter(c=>c.profitLossType==="خسارة لشخص").reduce((sum,c)=>sum+amount(c.profitLossAmount),0);
+      comparisonData={revenue:prevRevenue,expenses:prevExpenses,net:prevNet};
+      comparisonLabel="مقارنة بالشهر السابق ("+prevKey+")";
+    }else if(reportYear!=="ALL"&&reportMonth==="ALL"){
+      const prevYear=String(Number(reportYear)-1);
+      const prevCars=state.cars.filter(c=>String(c.date||"").startsWith(prevYear));
+      const prevSold=prevCars.filter(isSoldCar);
+      const prevRevenue=prevSold.reduce((sum,c)=>sum+amount(c.salePrice),0);
+      const prevCost=prevSold.reduce((sum,c)=>sum+amount(c.purchasePrice)+amount(c.prepCost),0);
+      const prevExpenses=state.expenses.filter(e=>String(e.date||"").startsWith(prevYear)).reduce((sum,e)=>sum+amount(e.amount),0);
+      const prevCapital=state.capital.filter(c=>String(c.date||"").startsWith(prevYear));
+      const prevNet=prevRevenue-prevCost-prevExpenses+prevCapital.filter(c=>c.profitLossType==="ربح من شخص").reduce((sum,c)=>sum+amount(c.profitLossAmount),0)-prevCapital.filter(c=>c.profitLossType==="خسارة لشخص").reduce((sum,c)=>sum+amount(c.profitLossAmount),0);
+      comparisonData={revenue:prevRevenue,expenses:prevExpenses,net:prevNet};
+      comparisonLabel="مقارنة بالسنة السابقة ("+prevYear+")";
+    }
+    const expenseCategories=new Map();
+    expenses.forEach(item=>{const key=String(item.category||"غير مصنف");expenseCategories.set(key,(expenseCategories.get(key)||0)+amount(item.amount));});
+    const categoryRows=Array.from(expenseCategories.entries()).sort((a,b)=>b[1]-a[1]);
+    const comparisonPanel=comparisonData?'<section class="panel section-gap"><h3>مقارنة الأداء بالفترة السابقة</h3><p class="panel-note">'+esc(comparisonLabel)+'</p><div class="kpi-grid">'+kpi("المبيعات السابقة",money(comparisonData.revenue),"للفترة المقارنة","blue")+kpi("المصروفات السابقة",money(comparisonData.expenses),"للفترة المقارنة","red")+kpi("صافي النتيجة السابقة",money(comparisonData.net),"للفترة المقارنة",comparisonData.net>=0?"green":"red")+kpi("تغير صافي النتيجة",money(net-comparisonData.net),"الحالي ناقص السابق",(net-comparisonData.net)>=0?"green":"red")+'</div></section>':'<section class="panel section-gap"><h3>مقارنة الأداء</h3><p class="panel-note">اختر سنة أو شهرًا محددًا لعرض مقارنة تلقائية مع الفترة السابقة.</p></section>';
+    const expenseAnalysis='<section class="panel section-gap"><h3>تفصيل مصروفات الفترة حسب البند</h3><p class="panel-note">مصروفات الفترة المختارة مرتبة من الأعلى إلى الأقل.</p>'+(categoryRows.length?'<div class="summary-list">'+categoryRows.map(item=>'<div class="summary-line"><span>'+esc(item[0])+'</span><strong>'+money(item[1])+'</strong></div>').join("")+'</div>':empty("لا توجد مصروفات مسجلة في الفترة المحددة."))+'</section>';
     let closingText = "اعرض شهراً محدداً لمعرفة حالة التقفيل.";
     let closingClass = "gold";
     if (reportYear!=="ALL" && reportMonth!=="ALL") {
@@ -1632,7 +1662,7 @@
       closingClass = closed ? "ok" : "warn";
     }
     return heading("التقارير والتقفيل","تقرير مشتريات ومبيعات ومصروفات ونتيجة الفترة من السجلات الحالية.",
-      '<select id="reportYear" class="search-input" style="width:auto">' + yearsHtml + '</select><select id="reportMonth" class="search-input" style="width:auto"' + (reportYear==="ALL"?" disabled":"") + '>' + monthsHtml + '</select>') +
+      '<button class="btn btn-outline btn-small" data-action="print">طباعة / حفظ PDF</button><select id="reportYear" class="search-input" style="width:auto">' + yearsHtml + '</select><select id="reportMonth" class="search-input" style="width:auto"' + (reportYear==="ALL"?" disabled":"") + '>' + monthsHtml + '</select>') +
       '<div class="kpi-grid">' +
       kpi("إيرادات بيع السيارات",money(revenue),"السيارات المسجلة كمباعة بالفترة","green") +
       kpi("تكلفة السيارات المباعة",money(cost),"شراء وتجهيز السيارات المباعة","") +
@@ -1650,7 +1680,7 @@
       '<p class="panel-note section-gap">الحالة معروضة كما هي محفوظة في قاعدة البيانات. لا يتم إقفال فترة أو تعديل لقطة مالية تلقائياً من هذه الصفحة.</p>' +
       '<div class="summary-list"><div class="summary-line"><span>تقفيل شهري محفوظ</span><strong>' + Object.values((state.closings&&state.closings.months)||{}).filter(Boolean).length + '</strong></div>' +
       '<div class="summary-line"><span>تقفيل نصف سنوي محفوظ</span><strong>' + Object.values((state.closings&&state.closings.halves)||{}).filter(Boolean).length + '</strong></div>' +
-      '<div class="summary-line"><span>تقفيل سنوي محفوظ</span><strong>' + Object.values((state.closings&&state.closings.annual)||{}).filter(Boolean).length + '</strong></div></div></section></div>';
+      '<div class="summary-line"><span>تقفيل سنوي محفوظ</span><strong>' + Object.values((state.closings&&state.closings.annual)||{}).filter(Boolean).length + '</strong></div></div></section></div>'+comparisonPanel+expenseAnalysis;
   }
 
   function render() {
@@ -2115,6 +2145,18 @@
       const h=adminHealthSnapshot();
       rows=[{metric:"مؤشر صحة الإدارة",value:h.score,unit:"من 100"},{metric:"مطابقات خزينة غير مكتملة",value:h.cashDates},{metric:"فروق مطابقة مسجلة",value:h.differences},{metric:"طلبات موظفين معلقة",value:h.pending},{metric:"طلبات متأخرة أكثر من يومين",value:h.stale},{metric:"مصروفات ناقصة التاريخ أو التصنيف",value:h.missingExpenseDetails}];
       filename="مؤشرات-الإدارة.csv";
+    } else if(currentView==="reports"){
+      const year=reportYear,month=reportMonth;
+      const inPeriod=value=>{const date=String(value||"");if(year!=="ALL"&&!date.startsWith(year))return false;if(month!=="ALL"&&!date.startsWith(year+"-"+String(month).padStart(2,"0")))return false;return true;};
+      const periodCars=state.cars.filter(c=>inPeriod(c.date)).filter(isSoldCar);
+      const periodExpenses=state.expenses.filter(e=>inPeriod(e.date));
+      const categories=new Map();periodExpenses.forEach(e=>{const key=String(e.category||"غير مصنف");categories.set(key,(categories.get(key)||0)+amount(e.amount));});
+      const sales=periodCars.reduce((sum,c)=>sum+amount(c.salePrice),0),cost=periodCars.reduce((sum,c)=>sum+amount(c.purchasePrice)+amount(c.prepCost),0);
+      const expTotal=periodExpenses.reduce((sum,e)=>sum+amount(e.amount),0);
+      const periodCapital=state.capital.filter(c=>inPeriod(c.date));
+      const net=sales-cost-expTotal+periodCapital.filter(c=>c.profitLossType==="ربح من شخص").reduce((sum,c)=>sum+amount(c.profitLossAmount),0)-periodCapital.filter(c=>c.profitLossType==="خسارة لشخص").reduce((sum,c)=>sum+amount(c.profitLossAmount),0);
+      rows=[{البند:"إيرادات البيع",المبلغ:sales},{البند:"تكلفة السيارات المباعة",المبلغ:cost},{البند:"مجمل الربح",المبلغ:sales-cost},{البند:"مصروفات التشغيل",المبلغ:expTotal},{البند:"صافي النتيجة",المبلغ:net},...Array.from(categories.entries()).map(item=>({البند:"مصروف: "+item[0],المبلغ:item[1]}))];
+      filename="تقرير-"+(year==="ALL"?"كل-السنوات":year)+(month==="ALL"?"":"-"+String(month).padStart(2,"0"))+".csv";
     } else { toast("افتح صفحة بيانات أولاً لتصديرها.","error"); return; }
     if (!rows.length) { toast("لا توجد بيانات للتصدير.","error"); return; }
     const keys = Object.keys(rows[0]);
