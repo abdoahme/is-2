@@ -1102,6 +1102,53 @@
     toast(Math.abs(difference)<0.005?"تمت مطابقة الخزينة دون فرق.":"تم حفظ المطابقة ويوجد فرق "+money(difference)+".",Math.abs(difference)<0.005?"success":"error");
   }
 
+  function renderInventory() {
+    const stock=state.cars.filter(car=>!isSoldCar(car));
+    const sold=state.cars.filter(isSoldCar);
+    const totalStock=stock.reduce((sum,car)=>sum+amount(car.purchasePrice)+amount(car.prepCost),0);
+    const profits=sold.map(car=>({car,details:carProfitDetails(car)}));
+    const totalGross=profits.reduce((sum,row)=>sum+row.details.profit,0);
+    const stockCards=stock.slice().sort((a,b)=>String(a.date||"").localeCompare(String(b.date||""))).map(car=>{
+      const cost=amount(car.purchasePrice)+amount(car.prepCost);
+      const days=car.date?Math.max(0,Math.floor((new Date(today()+"T00:00:00")-new Date(car.date+"T00:00:00"))/86400000)):null;
+      return '<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">'+esc(car.model||"سيارة")+'</div><div class="data-card-sub">'+esc(car.chassis||"بدون شاسيه")+' · '+dateText(car.date)+'</div></div>'+badge(car.status||"قيد البيع","gold")+'</div><div class="data-card-grid"><div class="data-cell"><span>تكلفة الشراء والتجهيز</span><strong>'+money(cost)+'</strong></div><div class="data-cell"><span>مدة بقاء السيارة</span><strong>'+(days===null?"غير محدد":days+" يوم")+'</strong></div><div class="data-cell"><span>الشريك</span><strong>'+esc(car.partnerName||"—")+'</strong></div><div class="data-cell"><span>مساهمة الشريك</span><strong>'+money(car.partnerContribution)+'</strong></div></div></article>';
+    }).join("");
+    const profitCards=profits.map(row=>{
+      const car=row.car,d=row.details;
+      return '<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">'+esc(car.model||"سيارة")+'</div><div class="data-card-sub">'+esc(car.customer||"عميل غير محدد")+' · '+dateText(car.date)+'</div></div>'+badge(d.profit>=0?"ربح":"خسارة",d.profit>=0?"ok":"warn")+'</div><div class="data-card-grid"><div class="data-cell"><span>سعر البيع</span><strong>'+money(car.salePrice)+'</strong></div><div class="data-cell"><span>تكلفة الشراء والتجهيز</span><strong>'+money(d.cost)+'</strong></div><div class="data-cell"><span>مجمل ربح السيارة</span><strong class="'+(d.profit>=0?"positive":"negative")+'">'+money(d.profit)+'</strong></div><div class="data-cell"><span>التحصيل / سعر البيع</span><strong>'+money(carPaid(car))+' / '+money(car.salePrice)+'</strong></div></div>'+(d.showPartner?'<div class="summary-line"><span>حصة '+esc(car.partnerName||"الشريك")+' '+(d.inferred?"التقديرية حسب التمويل":"حسب النسبة المتفق عليها")+' ('+d.sharePercent.toFixed(2)+'%)</span><strong>'+money(d.partnerProfit)+'</strong></div>':"")+'</article>';
+    }).join("");
+    return heading("مخزون السيارات وربحية كل سيارة","حالة السيارات المتاحة ومدة بقائها وربحية السيارات المباعة وتوزيع حصة الشريك.",'<button class="btn btn-outline btn-small" data-action="print">طباعة</button>')+
+      '<div class="kpi-grid">'+kpi("سيارات في المخزون",stock.length,"لم تسجل كمباعة","gold")+kpi("تكلفة المخزون",money(totalStock),"شراء وتجهيز","blue")+kpi("سيارات مباعة",sold.length,"بحالة بيع مسجلة","green")+kpi("مجمل ربح السيارات",money(totalGross),"قبل المصروفات التشغيلية",totalGross>=0?"green":"red")+'</div>'+
+      '<section class="panel section-gap"><h3>السيارات المتاحة / قيد البيع</h3>'+(stockCards?'<div class="data-list">'+stockCards+'</div>':empty("لا توجد سيارات في المخزون."))+'</section>'+
+      '<section class="panel section-gap"><h3>ربحية السيارات المباعة وتوزيع حصة الشريك</h3><p class="panel-note">إذا لم تدخل نسبة الشريك المتفق عليها، يعرض النظام تقديرًا تناسبيًا حسب مساهمة الشريك إلى تكلفة السيارة؛ لا يُعد ذلك بديلًا عن اتفاق الشراكة.</p>'+(profitCards?'<div class="data-list">'+profitCards+'</div>':empty("لا توجد سيارات مباعة."))+'</section>';
+  }
+
+  function renderCustomers() {
+    if(selectedCustomer){
+      const customer=customerGroups().find(item=>item.name===selectedCustomer);
+      if(!customer){selectedCustomer="";return renderCustomers();}
+      const cars=customer.cars;
+      const carIds=new Set(cars.map(car=>String(car.id)));
+      const transactions=financialTransactions.filter(tx=>carIds.has(String(tx.car_id||""))).sort((a,b)=>String(a.transaction_date).localeCompare(String(b.transaction_date)));
+      const debts=(state.debts||[]).filter(item=>String(item.partyName||"").trim()===selectedCustomer);
+      const carCards=cars.map(car=>{
+        const payments=currentCarPaymentRows(car.id);
+        return '<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">'+esc(car.model||"سيارة")+'</div><div class="data-card-sub">'+dateText(car.date)+' · '+esc(car.status||"")+'</div></div>'+badge(carRemaining(car)>0?"متبقي":"مسدد",carRemaining(car)>0?"warn":"ok")+'</div><div class="data-card-grid"><div class="data-cell"><span>سعر البيع</span><strong>'+money(car.salePrice)+'</strong></div><div class="data-cell"><span>المحصّل</span><strong class="positive">'+money(carPaid(car))+'</strong></div><div class="data-cell"><span>المتبقي</span><strong class="negative">'+money(carRemaining(car))+'</strong></div><div class="data-cell"><span>عدد الحركات</span><strong>'+payments.length+'</strong></div></div>'+(payments.length?'<div class="summary-list">'+payments.map(payment=>'<div class="summary-line"><span>'+dateText(payment.transaction_date)+' · '+esc(paymentMethodLabel(payment.payment_method))+' · '+esc(payment.reference||"تحصيل")+'</span><strong class="positive">'+money(payment.amount)+'</strong></div>').join("")+'</div>':"")+'</article>';
+      }).join("");
+      const debtCards=debts.map(item=>'<div class="summary-line"><span>'+esc(item.description||item.nature||"ذمة")+' · استحقاق '+dateText(item.dueDate)+'</span><strong>'+money(debtRemaining(item))+'</strong></div>').join("");
+      const legacyNote=transactions.some(tx=>tx.is_legacy)?'<p class="panel-note section-gap">بعض الدفعات رُحّلت من إجمالي مسدد سابق؛ لا تتوفر تواريخ أو طرق الدفع التفصيلية لها.</p>':"";
+      return heading("كشف حساب العميل: "+selectedCustomer,"مبيعات العميل والتحصيلات والذمم المرتبطة به.",'<button class="btn btn-outline btn-small" data-action="customer-back">عودة للعملاء</button><button class="btn btn-outline btn-small" data-action="print">طباعة الكشف</button>')+
+        '<div class="kpi-grid">'+kpi("إجمالي المبيعات",money(customer.sales),"قيمة السيارات المباعة","blue")+kpi("إجمالي التحصيل",money(customer.paid),"من دفتر التحصيلات","green")+kpi("المتبقي",money(customer.remaining),"رصيد السيارات","red")+kpi("الذمم الإضافية",money(debts.reduce((sum,item)=>sum+debtRemaining(item),0)),"ذمم باسم العميل","gold")+'</div>'+
+        '<section class="panel section-gap"><h3>السيارات والدفعات</h3><div class="data-list">'+carCards+'</div></section>'+
+        (debtCards?'<section class="panel section-gap"><h3>الذمم والأقساط</h3><div class="summary-list">'+debtCards+'</div></section>':"")+legacyNote;
+    }
+    const groups=customerGroups();
+    const cards=groups.map(item=>'<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">'+esc(item.name)+'</div><div class="data-card-sub">'+item.cars.length+' سيارة مرتبطة بالعميل</div></div>'+badge(item.remaining>0?"عليه رصيد":"مسدد",item.remaining>0?"warn":"ok")+'</div><div class="data-card-grid"><div class="data-cell"><span>المبيعات</span><strong>'+money(item.sales)+'</strong></div><div class="data-cell"><span>المحصّل</span><strong class="positive">'+money(item.paid)+'</strong></div><div class="data-cell"><span>المتبقي</span><strong class="negative">'+money(item.remaining)+'</strong></div><div class="data-cell"><span>عدد السيارات</span><strong>'+item.cars.length+'</strong></div></div><div class="card-actions"><button class="btn btn-outline btn-small" data-action="customer-statement" data-customer="'+esc(item.name)+'">فتح كشف الحساب</button></div></article>').join("");
+    return heading("حسابات العملاء","كشف مجمّع لكل عميل من مبيعات السيارات ودفعات التحصيل والذمم.",'<button class="btn btn-outline btn-small" data-action="print">طباعة</button>')+
+      '<div class="kpi-grid">'+kpi("عدد العملاء",groups.length,"لديهم سيارات مسجلة","blue")+kpi("إجمالي المبيعات",money(groups.reduce((sum,item)=>sum+item.sales,0)),"قيمة المبيعات","green")+kpi("إجمالي التحصيل",money(groups.reduce((sum,item)=>sum+item.paid,0)),"دفعات مسجلة","gold")+kpi("إجمالي المتبقي",money(groups.reduce((sum,item)=>sum+item.remaining,0)),"مستحق من العملاء","red")+'</div>'+
+      (cards?'<div class="data-list">'+cards+'</div>':empty("لا توجد أسماء عملاء مرتبطة بالسيارات."));
+  }
+
   function renderOverview() {
     const m = metrics();
     const recent = (state.cars || []).slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))).slice(0,4);
