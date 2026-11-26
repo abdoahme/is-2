@@ -219,7 +219,8 @@
       let subscription=await registration.pushManager.getSubscription();
       if(!subscription) subscription=await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64UrlToBytes(keyData.publicKey)});
       await pushApi("subscribe",{subscription:subscription.toJSON(),userAgent:navigator.userAgent.slice(0,240)});
-      toast("تم تفعيل إشعارات الهاتف بنجاح. ستصلك التنبيهات على هذا الجهاز.","success");
+      await reportSystemIssue("info","تم تفعيل إشعارات الهاتف","هذا إشعار تجريبي للتأكد من وصول التنبيهات إلى هاتفك.","push-test:"+session.user.id+":"+Math.floor(Date.now()/60000));
+      toast("تم تفعيل إشعارات الهاتف وإرسال إشعار تجريبي.","success");
       renderNotificationPanel();
     } catch(error) {
       toast("تعذر تفعيل إشعارات الهاتف: "+(error.message||"خطأ غير معروف"),"error");

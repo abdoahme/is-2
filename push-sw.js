@@ -3,8 +3,6 @@ self.addEventListener("push",event=>{
   try{if(event.data)data=Object.assign(data,event.data.json());}catch(_){}
   event.waitUntil(self.registration.showNotification(data.title||"تنبيه IS Motors",{
     body:data.body||"يوجد تنبيه جديد في النظام.",
-    icon:"/icons/icon-192.png",
-    badge:"/icons/icon-192.png",
     tag:data.tag||"is-motors-alert",
     renotify:false,
     data:{url:data.url||"/"}
