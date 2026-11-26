@@ -64,8 +64,12 @@ module.exports = async function handler(req, res) {
     if (!process.env.GEMINI_API_KEY) return send(res, 503, { error: "المساعد جاهز، لكن يلزم إضافة GEMINI_API_KEY في متغيرات Vercel السرية." });
 
     const context = numericContext(body.context || {});
+    const responseLanguage = body.language === "en" ? "English" : "Arabic";
+    const languageInstruction = responseLanguage === "English"
+      ? "You are the administrative and financial assistant for IS Motors. Answer in clear, professional English."
+      : "أنت المساعد الإداري والمالي لنظام IS Motors. أجب باللغة العربية وبأسلوب واضح ومهني.";
     const prompt = [
-      "أنت المساعد الإداري والمالي لنظام IS Motors. أجب باللغة العربية وبأسلوب واضح ومهني.",
+      languageInstruction,
       "حلل الأرقام المجمعة فقط. لا تخترع بيانات أو معاملات أو أسماء. وضّح الافتراضات وحدود الحسابات.",
       "لا تقدم فتوى محاسبية أو قانونية نهائية، ولا تنفذ أي تعديل أو حذف أو تحويل مالي. اقترح خطوات يراجعها المدير.",
       "بيانات مالية مجمعة بصيغة JSON:",
@@ -82,7 +86,7 @@ module.exports = async function handler(req, res) {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY },
         body: JSON.stringify({
-          systemInstruction: { parts: [{ text: "أنت مستشار إداري مالي حذر. لا تكشف أسرارًا ولا تطلب كلمات مرور أو مفاتيح API." }] },
+          systemInstruction: { parts: [{ text: responseLanguage === "English" ? "You are a careful financial and administrative advisor. Never reveal secrets or ask for passwords or API keys." : "أنت مستشار إداري مالي حذر. لا تكشف أسرارًا ولا تطلب كلمات مرور أو مفاتيح API." }] },
           contents: [{ role: "user", parts: [{ text: prompt }] }],
           generationConfig: { temperature: 0.35, maxOutputTokens: 900 }
         }),

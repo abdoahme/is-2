@@ -1351,6 +1351,7 @@
     const title=tx.direction==="inflow"?"إيصال استلام نقدية":"إيصال صرف نقدية";
     const host=$("printReceipt");
     host.innerHTML='<div class="receipt-sheet"><div class="receipt-brand"><div class="brand-mark">IS</div><div><strong>IS MOTORS</strong><span>نظام الإدارة والحسابات</span></div></div><div class="receipt-heading"><h1>'+title+'</h1><p>رقم الإيصال: '+esc(receiptNo)+'</p></div><div class="receipt-meta"><span>التاريخ: <b>'+dateText(tx.transaction_date)+'</b></span><span>طريقة الدفع: <b>'+esc(paymentMethodLabel(tx.payment_method))+'</b></span></div><div class="receipt-amount"><small>المبلغ</small><strong>'+money(tx.amount)+'</strong></div><div class="receipt-details"><div><span>اسم الطرف</span><strong>'+esc(tx.person_name||"—")+'</strong></div><div><span>نوع الحركة</span><strong>'+esc(transactionCategoryLabel(tx.category))+'</strong></div><div><span>السيارة المرتبطة</span><strong>'+esc(car?car.model:"—")+'</strong></div><div><span>المرجع</span><strong>'+esc(tx.reference||"—")+'</strong></div><div class="receipt-full"><span>البيان</span><strong>'+esc(tx.description||"—")+'</strong></div></div><div class="receipt-note">'+(tx.is_legacy?"حركة مرحّلة من سجلات سابقة.":"تم إصدار هذا الإيصال من دفتر الحركة المالي.")+'</div><div class="receipt-signatures"><div>المستلم / المسلم<br><small>الاسم والتوقيع</small></div><div>اعتماد الإدارة<br><small>التوقيع والختم</small></div></div><footer>IS Motors · إيصال صادر من النظام الإلكتروني</footer></div>';
+    translateDOM(host);
     document.body.classList.add("print-receipt-mode");
     const cleanup=()=>{document.body.classList.remove("print-receipt-mode");host.innerHTML="";};
     window.addEventListener("afterprint",cleanup,{once:true});
@@ -1656,7 +1657,7 @@
   function renderAiConversation() {
     const host=$("aiChatHistory");
     if(!host)return;
-    host.innerHTML=aiConversation.length?aiConversation.map(item=>'<div class="ai-message '+(item.role==="user"?"user":"assistant")+'"><strong>'+(item.role==="user"?"أنت":"مساعد IS Motors")+'</strong><p>'+esc(item.text).replace(/\n/g,"<br>")+'</p></div>').join(""):'<div class="ai-empty">اسأل عن صافي نتيجة النشاط أو المصروفات أو السيولة أو الملاحظات الرقابية. سيستخدم المساعد ملخصات مالية مجمعة فقط.</div>';
+    host.innerHTML=aiConversation.length?aiConversation.map(item=>'<div class="ai-message '+(item.role==="user"?"user":"assistant")+'"><strong>'+(item.role==="user"?"أنت":"مساعد IS Motors")+'</strong><p data-no-translate>'+esc(item.text).replace(/\n/g,"<br>")+'</p></div>').join(""):'<div class="ai-empty">اسأل عن صافي نتيجة النشاط أو المصروفات أو السيولة أو الملاحظات الرقابية. سيستخدم المساعد ملخصات مالية مجمعة فقط.</div>';
     host.scrollTop=host.scrollHeight;
   }
 
@@ -1673,16 +1674,16 @@
     aiConversation.push({role:"user",text:message});
     input.value="";
     renderAiConversation();
-    button.disabled=true;button.textContent="جارٍ التحليل...";
+    button.disabled=true;button.textContent=translateText("جارٍ التحليل...");
     try{
-      const response=await fetch("/api/assistant",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(session&&session.access_token||"")},body:JSON.stringify({message,context:aiContextSummary()})});
+      const response=await fetch("/api/assistant",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(session&&session.access_token||"")},body:JSON.stringify({message,context:aiContextSummary(),language:uiLanguage})});
       const payload=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(payload.error||"تعذر الاتصال بالمساعد الذكي.");
       aiConversation.push({role:"assistant",text:String(payload.answer||"لم يصل رد من المساعد.")});
     }catch(error){
-      aiConversation.push({role:"assistant",text:"تعذر إتمام الطلب: "+(error.message||"خطأ غير معروف")});
+      aiConversation.push({role:"assistant",text:translateText("تعذر إتمام الطلب: ")+(translateText(error.message||"خطأ غير معروف"))});
     }finally{
-      button.disabled=false;button.textContent="إرسال";renderAiConversation();
+      button.disabled=false;button.textContent=translateText("إرسال");renderAiConversation();
     }
   }
 
@@ -2367,7 +2368,7 @@
     const feedback = $("requestFeedback");
     feedback.textContent = "";
     if (description.length<3 || description.length>500 || amountValue<=0) {
-      feedback.textContent = "يرجى إدخال بيان صحيح ومبلغ أكبر من صفر.";
+      feedback.textContent = translateText("يرجى إدخال بيان صحيح ومبلغ أكبر من صفر.");
       return;
     }
     const button = $("expenseRequestForm").querySelector("button[type=submit]");
@@ -2380,10 +2381,10 @@
       if (result.error) throw result.error;
       $("expenseRequestForm").reset();
       $("requestDate").value = today();
-      feedback.textContent = "تم إرسال الطلب بنجاح إلى الإدارة.";
+      feedback.textContent = translateText("تم إرسال الطلب بنجاح إلى الإدارة.");
       toast("وصل طلب المصروف إلى الإدارة.","success");
     } catch (error) {
-      feedback.textContent = "تعذر إرسال الطلب: " + (error.message || "تحقق من الاتصال.");
+      feedback.textContent = translateText("تعذر إرسال الطلب: ") + translateText(error.message || "تحقق من الاتصال.");
       feedback.style.color = "var(--red)";
     } finally {
       button.disabled = false;
@@ -2488,15 +2489,15 @@
     const button=$("loginForm").querySelector('button[type="submit"]');
     const errorBox=$("loginError");errorBox.textContent="";
     const email=$("loginEmail").value.trim();const password=$("loginPassword").value;
-    button.disabled=true;button.textContent="جارٍ تسجيل الدخول...";
+    button.disabled=true;button.textContent=translateText("جارٍ تسجيل الدخول...");
     try {
       const result=await db.auth.signInWithPassword({email:email,password:password});
       if(result.error) throw result.error;
       await boot(result.data.session);
     } catch(error) {
-      errorBox.textContent=error.message||"تعذر تسجيل الدخول. راجع البريد وكلمة المرور.";
+      errorBox.textContent=translateText(error.message||"تعذر تسجيل الدخول. راجع البريد وكلمة المرور.");
     } finally {
-      button.disabled=false;button.textContent="تسجيل الدخول";
+      button.disabled=false;button.textContent=translateText("تسجيل الدخول");
     }
   });
 
