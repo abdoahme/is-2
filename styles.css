@@ -821,3 +821,18 @@ button:disabled{opacity:.45;cursor:not-allowed;filter:grayscale(.15);transform:n
 .expense-category-track i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#c49a58,#e1c48f)}
 @media(max-width:720px){.health-check-list{grid-template-columns:1fr}.health-score-row{align-items:flex-start}.health-score{width:78px;height:78px;flex-basis:78px}}
 @media print{.health-score-row,.health-check,.expense-category-track{break-inside:avoid}.health-score{print-color-adjust:exact;-webkit-print-color-adjust:exact}}
+
+
+/* Phase 4 — embedded management AI assistant */
+.ai-chat-history{display:grid;gap:10px;max-height:360px;min-height:110px;overflow:auto;padding:12px;border:1px solid var(--line);border-radius:13px;background:var(--panel2)}
+.ai-message{max-width:92%;padding:11px 13px;border:1px solid var(--line);border-radius:13px;background:#fff}
+.ai-message.user{justify-self:start;background:#f2f6fb}
+.ai-message.assistant{justify-self:end;border-color:#e5d7bd;background:#fffaf1}
+.ai-message strong{font-size:10px;color:var(--gold2)}
+.ai-message p{font-size:12px;line-height:1.9;margin:5px 0 0;white-space:normal;overflow-wrap:anywhere}
+.ai-empty{align-self:center;text-align:center;color:var(--muted);font-size:11px;line-height:1.8;padding:14px}
+.ai-chat-compose{display:flex;align-items:stretch;gap:9px;margin-top:11px}
+.ai-chat-compose textarea{flex:1;min-width:0;resize:vertical;border:1px solid #d7deea;border-radius:12px;padding:11px 13px;background:#fff;color:var(--text);font:inherit;font-size:12px}
+.ai-chat-compose textarea:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(150,101,31,.12)}
+.ai-chat-compose button{align-self:stretch;min-width:88px}
+@media(max-width:720px){.ai-chat-compose{flex-direction:column}.ai-chat-compose button{width:100%}.ai-message{max-width:100%}}
