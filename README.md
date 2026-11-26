@@ -22,3 +22,8 @@ Single-codebase Arabic, right-to-left web application for the IS Motors dealersh
 This is a static site. Publish the root of the repository on Vercel. No build step or server-side secret is required for the current accounting features.
 
 The Gemini key is intentionally not included in browser source code. A secure server-side proxy and a separately configured secret are required before enabling Gemini API calls.
+
+
+## Complete project documentation
+
+- [Islam Al-Fayed complete project dossier](./ISLAM-AL-FAYED-IS-MOTORS-COMPLETE-PROJECT.md) — project identifiers, service relationships, data model, setup notes, and full source code snapshot.
