@@ -23,8 +23,9 @@
 
   <main id="loginScreen" class="auth-screen" hidden>
     <section class="auth-card">
+      <div class="auth-language"><label class="language-control"><span>Language / اللغة</span><select class="language-select" aria-label="Language"><option value="ar">العربية</option><option value="en">English</option></select></label></div>
       <div class="brand-mark large">IS</div>
-      <p class="eyebrow">IS MOTORS MANAGEMENT</p>
+      <p class="eyebrow">IS MOTORS MANAGEMENT</p
       <h1>نظام الإدارة والحسابات</h1>
       <p class="muted auth-intro">سجّل الدخول للوصول إلى لوحة المعرض حسب صلاحية حسابك.</p>
       <form id="loginForm" class="form-stack">
@@ -48,6 +49,7 @@
         <div><strong>IS MOTORS</strong><span>نظام الإدارة والحسابات</span></div>
       </div>
       <div class="top-actions">
+        <label class="language-control"><span class="sr-only">Language</span><select class="language-select" aria-label="Language"><option value="ar">العربية</option><option value="en">English</option></select></label>
         <span id="syncBadge" class="sync-badge">● متصل</span>
         <button id="notificationsBtn" class="notification-bell" type="button" aria-label="الإشعارات" title="الإشعارات">🔔<span id="notificationsCount" hidden>0</span></button>
         <section id="notificationsPanel" class="notifications-panel" hidden aria-label="قائمة الإشعارات"></section>
@@ -138,7 +140,7 @@
   <main id="employeeShell" class="app-shell employee-shell" hidden>
     <header class="topbar">
       <div class="brand-lockup"><div class="brand-mark small">IS</div><div><strong>IS MOTORS</strong><span>بوابة الموظف</span></div></div>
-      <div class="top-actions"><span class="role-badge user-badge">موظف</span><button id="employeeLogoutBtn" class="btn btn-ghost btn-small" type="button">خروج</button></div>
+      <div class="top-actions"><label class="language-control"><span class="sr-only">Language</span><select class="language-select" aria-label="Language"><option value="ar">العربية</option><option value="en">English</option></select></label><span class="role-badge user-badge">موظف</span><button id="employeeLogoutBtn class="btn btn-ghost btn-small" type="button">خروج</button></div>
     </header>
     <section class="employee-card">
       <p class="eyebrow">EMPLOYEE PORTAL</p>

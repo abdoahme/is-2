@@ -32,6 +32,32 @@
   const esc = (value) => String(value == null ? "" : value).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const dateText = (value) => value ? esc(value) : "—";
   const makeId = () => "row_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
+
+  let uiLanguage="ar";
+  try{const saved=window.localStorage.getItem("is-motors-language");if(saved==="en"||saved==="ar")uiLanguage=saved;}catch(_){}
+  const LANGUAGE_PAIRS=[["نظام الإدارة والحسابات","Management & Accounts System"],["نظام الإدارة المالية","Financial Management System"],["إدارة المعرض والحسابات","Showroom & Accounts Management"],["اتصال مشفّر بقاعدة البيانات السحابية","Encrypted cloud database connection"],["جاري الاتصال بالنظام وقاعدة البيانات...","Connecting to the system and database..."],["جارٍ التحقق من صلاحية الحساب...","Checking account permissions..."],["اختر القسم الذي تريد إدارته","Choose the section you want to manage"],["القائمة الرئيسية","Main Menu"],["نظرة عامة","Overview"],["إدارة المعرض","Showroom"],["الحسابات والشركاء","Accounts & Partners"],["التشغيل والرقابة","Operations & Control"],["لوحة الإدارة","Administration"],["التقارير والنظام","Reports & System"],["لوحة التحكم","Dashboard"],["ابحث في الصفحة الحالية...","Search this page..."],["تصدير CSV","Export CSV"],["الرئيسية","Home"],["السيارات","Vehicles"],["المصروفات","Expenses"],["مصروفات التشغيل","Operating Expenses"],["المبالغ المتبقية","Outstanding Balances"],["الذمم والأقساط","Debts & Installments"],["رأس المال والخزينة","Capital & Treasury"],["حركة الشركاء","Partner Movements"],["دفتر الحركة والخزينة","Cashbook & Treasury"],["مخزون السيارات والأرباح","Vehicle Inventory & Profits"],["حسابات العملاء","Customer Accounts"],["التنبيهات والاستحقاقات","Alerts & Due Dates"],["النسخ الاحتياطي","Backups"],["اقتراحات الإدارة","Management Suggestions"],["الموظفون والصلاحيات","Staff & Permissions"],["سجل المراجعة","Audit Log"],["التقفيل الشهري","Monthly Closing"],["التقفيل السنوي","Annual Closing"],["طلبات الموظفين","Employee Requests"],["الإعدادات والروابط","Settings & Links"],["بوابة الموظف","Employee Portal"],["موظف","Employee"],["مدير النظام","System Administrator"],["البريد الإلكتروني","Email Address"],["كلمة المرور","Password"],["تسجيل الدخول","Sign In"],["جارٍ تسجيل الدخول...","Signing in..."],["سجّل الدخول للوصول إلى لوحة المعرض حسب صلاحية حسابك.","Sign in to access the showroom dashboard according to your account permissions."],["خروج","Sign Out"],["متصل","Connected"],["لا يوجد اتصال","Offline"],["تم الحفظ","Saved"],["حفظ التعديلات","Saving Changes"],["تحميل البيانات","Loading Data"],["تحميل الدفاتر المالية","Loading Financial Records"],["تم تحميل الدفاتر","Financial Records Loaded"],["حالة الاتصال","Connection Status"],["المستخدم الحالي","Current User"],["الصلاحية","Permission"],["قاعدة البيانات","Database"],["Supabase متصل","Supabase Connected"],["موجود ومحفوظ","Available and Saved"],["نسخة احتياطية للبيانات","Data Backup"],["تنزيل نسخة احتياطية","Download Backup"],["الموقع الرئيسي","Main Website"],["الكود البرمجي على GitHub","Source Code on GitHub"],["النشر والاستضافة على Vercel","Deployment & Hosting on Vercel"],["قاعدة البيانات والصلاحيات","Database & Permissions"],["الإشعارات","Notifications"],["إغلاق","Close"],["تفعيل إشعارات الهاتف","Enable Phone Notifications"],["تصل حتى عند إغلاق الموقع بعد السماح بها","Delivered after permission, even when the site is closed"],["تمييز كمقروء","Mark as Read"],["تمت المراجعة","Reviewed"],["مقروء","Read"],["غير مقروء","Unread"],["لا توجد إشعارات حتى الآن.","There are no notifications yet."],["فتح مركز الإشعارات","Open Notification Center"],["إضافة سجل","Add Record"],["تعديل البيانات","Edit Data"],["حفظ البيانات","Save Data"],["إلغاء","Cancel"],["السيارة","Vehicle"],["المصروف","Expense"],["بيان السيارة / الموديل","Vehicle / Model"],["تاريخ الحركة","Transaction Date"],["رقم الشاسيه","Chassis Number"],["سعر الشراء","Purchase Price"],["اسم الشريك المساهم (اختياري)","Contributing Partner (Optional)"],["مبلغ مساهمة الشريك","Partner Contribution"],["نسبة ربح الشريك المتفق عليها % (اختياري)","Agreed Partner Profit Share % (Optional)"],["طريقة إيداع الشراكة","Partner Deposit Method"],["مصاريف التجهيز","Preparation Costs"],["إجمالي سعر البيع","Total Sale Price"],["حالة السيارة","Vehicle Status"],["موعد القسط القادم (اختياري)","Next Installment Date (Optional)"],["اسم العميل","Customer Name"],["رقم الهاتف","Phone Number"],["ملاحظات","Notes"],["التاريخ","Date"],["بند المصروف","Expense Category"],["البيان","Description"],["المبلغ","Amount"],["طريقة الدفع","Payment Method"],["المستلم / المورد","Recipient / Supplier"],["السيارة المرتبطة بالصيانة","Vehicle Linked to Maintenance"],["المبلغ المضاف إلى تجهيز السيارة","Amount Added to Vehicle Preparation"],["اختر السيارة","Select Vehicle"],["— اختر السيارة —","— Select Vehicle —"],["لا توجد سيارات متاحة؛ سجّل سيارة بحالة قيد البيع أولاً.","No vehicles are available. Add a vehicle with For Sale status first."],["اختر سيارة متاحة من المخزون لربط مصروف الصيانة بها.","Select an available inventory vehicle to link this maintenance expense."],["يجب أن يكون مبلغ الصيانة أكبر من صفر.","Maintenance amount must be greater than zero."],["اختر السيارة المرتبطة بالصيانة.","Select the vehicle linked to this maintenance expense."],["سيارة بدون اسم","Unnamed Vehicle"],["بدون عميل","No Customer"],["غير محدد","Not Specified"],["غير مصنف","Uncategorized"],["إيجار","Rent"],["رواتب وأجور","Salaries & Wages"],["كهرباء ومرافق","Utilities"],["مستلزمات","Supplies"],["صيانة","Maintenance"],["تسويق وإعلانات","Marketing & Advertising"],["انتقالات","Transportation"],["رسوم حكومية","Government Fees"],["أخرى","Other"],["نقداً","Cash"],["تحويل بنكي","Bank Transfer"],["شيك","Cheque"],["بطاقة","Card"],["نقداً بالخزينة","Cash in Treasury"],["شيك بنكي","Bank Cheque"],["إيداع بنكي مباشر","Direct Bank Deposit"],["رصيد افتتاحي","Opening Balance"],["قيد البيع","For Sale"],["كاش","Cash Sale"],["متبقي","Balance Due"],["تقسيط","Installments"],["مباع","Sold"],["منتظم","On Track"],["متأخر","Overdue"],["قيد المتابعة","Follow-up"],["تم السداد","Paid"],["تكلفة الشراء والتجهيز","Purchase & Preparation Cost"],["تكلفة التجهيز","Preparation Cost"],["سعر البيع","Sale Price"],["المدفوع","Paid"],["المتبقي","Remaining"],["المبلغ المدفوع","Amount Paid"],["إدارة بيانات الشراء والبيع والتحصيل والمبالغ المتبقية.","Manage vehicle purchases, sales, collections, and outstanding balances."],["تسجيل ومراجعة كل المصروفات الفعلية للمعرض.","Record and review all actual showroom expenses."],["الشريك / المودع","Partner / Depositor"],["طبيعة المبلغ","Balance Type"],["اسم العميل / الجهة","Customer / Entity Name"],["إجمالي المبلغ","Total Amount"],["المبلغ المسدد","Amount Settled"],["تاريخ الاستحقاق","Due Date"],["نوع الحركة","Transaction Type"],["المودع (داخل)","Deposited (In)"],["المسحوب (خارج)","Withdrawn (Out)"],["طريقة المعاملة","Payment Method"],["رقم الإيصال","Receipt Number"],["نوع الربح / الخسارة","Profit / Loss Type"],["قيمة الربح / الخسارة","Profit / Loss Amount"],["تحصيل من عميل","Customer Collection"],["سداد ثمن شراء سيارة","Vehicle Purchase Payment"],["سداد تجهيز سيارة","Vehicle Preparation Payment"],["حركة واردة أخرى","Other Inflow"],["حركة منصرفة أخرى","Other Outflow"],["إيداع رأس مال","Capital Deposit"],["زيادة رأس مال","Capital Increase"],["مسحوبات أرباح شركاء","Partner Profit Withdrawals"],["مسحوبات شخصية شركاء","Partner Personal Withdrawals"],["تمويل إضافي / جاري شريك","Additional Partner Funding"],["استرداد مسحوبات","Withdrawal Reversal"],["لنا (مستحق للمعرض)","Receivable (Due to Showroom)"],["علينا (مستحق على المعرض)","Payable (Due from Showroom)"],["نقداً من الخزينة","Cash from Treasury"],["تم حفظ التعديلات في قاعدة البيانات.","Changes saved to the database."],["تم تسجيل الحركة المالية في الدفتر.","Financial transaction recorded in the ledger."],["تم اعتماد الطلب وإضافته للمصروفات.","Request approved and added to expenses."],["تم إرسال الطلب بنجاح إلى الإدارة.","Request successfully sent to management."],["مجمل الربح","Gross Profit"],["صافي الربح","Net Profit"],["صافي النتيجة","Net Result"],["مصروفات الفترة","Period Expenses"],["مصروفات التشغيل","Operating Expenses"],["تكلفة السيارات المباعة","Cost of Sold Vehicles"],["إيرادات البيع","Sales Revenue"],["إيرادات بيع السيارات","Vehicle Sales Revenue"],["النسخ المحفوظة","Saved Backups"],["النسخ اليومية","Daily Backups"],["النسخ اليدوية","Manual Backups"],["إنشاء نسخة الآن","Create Backup Now"],["تنزيل JSON","Download JSON"],["لا توجد بيانات مسجلة حتى الآن.","No records have been added yet."],["لا توجد بيانات مسجلة.","No records have been added."],["لا توجد مصروفات مسجلة في الفترة المحددة.","No expenses recorded in the selected period."],["لا توجد سيارات مسجلة بعد.","No vehicles have been recorded yet."],["لم تُسجّل مساهمات شركاء بعد.","No partner contributions have been recorded yet."],["مراجعة وتقفيل الشهر","Review & Close Month"],["اعتماد التقفيل السنوي","Approve Annual Closing"],["إعادة فتح الشهر بسبب موثّق","Reopen Month with Documented Reason"],["إعادة فتح السنة بسبب موثّق","Reopen Year with Documented Reason"],["طباعة / حفظ PDF","Print / Save PDF"],["طباعة الكشف","Print Report"],["عرض كل الاقتراحات","View All Suggestions"],["المساعد الذكي للإدارة","Management AI Assistant"],["جارٍ التحليل...","Analyzing..."],["إرسال","Send"],["خاص بالمدير","Admin Only"],["تنبيهات الإدارة","Management Alerts"],["مؤشر صحة الإدارة والرقابة المالية","Management Health & Financial Control"],["تحليل مصروفات التشغيل حسب البند","Operating Expense Analysis by Category"],["طلبات الموظفين المعلقة","Pending Employee Requests"],["مطابقة الخزينة","Cash Reconciliation"],["مساهمة شريك في شراء سيارة","Partner Contribution to Vehicle Purchase"],["هل تريد حذف هذا السجل؟ لا يمكن التراجع بعد الحفظ.","Delete this record? This cannot be undone after saving."],["العربية","Arabic"]];
+  function translateText(value){
+    let output=String(value==null?"":value);
+    const map=uiLanguage==="en"?LANGUAGE_PAIRS:LANGUAGE_PAIRS.map(pair=>[pair[1],pair[0]]);
+    map.slice().sort((a,b)=>b[0].length-a[0].length).forEach(pair=>{if(pair[0]&&pair[0]!==pair[1])output=output.split(pair[0]).join(pair[1]);});
+    return output;
+  }
+  function translateDOM(root){
+    const target=root||document,walker=document.createTreeWalker(target,NodeFilter.SHOW_TEXT),nodes=[];let node;
+    while((node=walker.nextNode())){if(node.parentElement&&node.parentElement.closest("script,style,[data-no-translate]"))continue;nodes.push(node);}
+    nodes.forEach(textNode=>{textNode.nodeValue=translateText(textNode.nodeValue);});
+    const elements=target.nodeType===1?[target].concat(Array.from(target.querySelectorAll("*"))):Array.from(target.querySelectorAll("*"));
+    elements.forEach(element=>{if(element.matches(".language-select,[data-no-translate]"))return;["placeholder","title","aria-label","aria-description"].forEach(attr=>{if(element.hasAttribute(attr))element.setAttribute(attr,translateText(element.getAttribute(attr)));});});
+  }
+  function setLanguage(language){
+    uiLanguage=language==="en"?"en":"ar";
+    try{window.localStorage.setItem("is-motors-language",uiLanguage);}catch(_){}
+    document.documentElement.lang=uiLanguage;document.documentElement.dir=uiLanguage==="en"?"ltr":"rtl";
+    document.querySelectorAll(".language-select").forEach(select=>{select.value=uiLanguage;});
+    if(role==="admin")render();else translateDOM(document);
+  }
+  document.documentElement.lang=uiLanguage;document.documentElement.dir=uiLanguage==="en"?"ltr":"rtl";translateDOM(document);
+
   const emptyState = () => ({
     cars: [], expenses: [], debts: [], capital: [], partnerMovements: [],
     closings: {annual:{}, halves:{}, months:{}, snapshots:[]},
@@ -75,6 +101,7 @@
       fields:[
         {key:"date",label:"التاريخ",type:"date"},
         {key:"category",label:"بند المصروف",type:"select",options:["إيجار","رواتب وأجور","كهرباء ومرافق","مستلزمات","صيانة","تسويق وإعلانات","انتقالات","رسوم حكومية","أخرى"]},
+        {key:"carId",label:"السيارة المرتبطة بالصيانة",type:"select",options:[],showWhen:{field:"category",value:"صيانة"}},
         {key:"description",label:"البيان",required:true},
         {key:"amount",label:"المبلغ",type:"number",required:true},
         {key:"paymentMethod",label:"طريقة الدفع",type:"select",options:["نقداً","تحويل بنكي","شيك","بطاقة","أخرى"]},
@@ -258,7 +285,7 @@
 
   function toast(message, type) {
     const box = $("toast");
-    box.textContent = message;
+    box.textContent = translateText(message);
     box.className = "toast show " + (type || "");
     if(type==="error" && role==="admin" && session && typeof reportSystemIssue==="function") {
       const safeMessage=String(message||"خطأ غير محدد").replace(/https?:\/\/\S+/g,"[رابط مخفي]").slice(0,350);
@@ -422,7 +449,7 @@
       existing.direction===desired.direction &&
       existing.category===desired.category &&
       existing.payment_method===desired.payment_method &&
-      Math.abs(amount(existing.amount)-amount(desired.amount))<0.0001;
+      Math.abs(amount(existing.amount)-amount(desired.amount))<0.0001 && String(existing.car_id||"")===String(desired.car_id||"");
   }
 
   async function insertFinancialTransaction(payload) {
@@ -452,10 +479,12 @@
     const output=[];
     (sourceState.expenses||[]).forEach(item=>{
       if (!item || !item.id || amount(item.amount)<=0 || !/^\d{4}-\d{2}-\d{2}$/.test(String(item.date||""))) return;
+      const vehiclePrep=isVehiclePrepExpense(item);
+      const linkedCar=vehiclePrep?(sourceState.cars||[]).find(car=>String(car.id)===String(item.carId)):null;
       output.push({
-        user_id:session.user.id,transaction_date:item.date,direction:"outflow",category:"expense",
-        payment_method:dbPaymentMethod(item.paymentMethod),amount:amount(item.amount),
-        person_name:item.recipient||"",description:item.description||item.category||"مصروف",
+        user_id:session.user.id,transaction_date:item.date,direction:"outflow",category:vehiclePrep?"car_prep":"expense",
+        payment_method:dbPaymentMethod(item.paymentMethod),amount:amount(item.amount),car_id:linkedCar?String(linkedCar.id):null,
+        person_name:item.recipient||"",description:vehiclePrep?("صيانة "+String(linkedCar.model||"سيارة")+" — "+String(item.description||"")):(item.description||item.category||"مصروف"),
         reference:item.receiptNo||"",source_type:"expense",source_id:String(item.id),is_legacy:false
       });
     });
@@ -690,6 +719,18 @@
   }
 
   function amount(value) { return num(value); }
+  function isVehiclePrepExpense(item){return Boolean(item&&item.category==="صيانة"&&item.carId&&amount(item.carPrepApplied)>0);}
+  function operatingExpenseTotal(items){return (items||[]).reduce((sum,item)=>sum+(isVehiclePrepExpense(item)?0:amount(item.amount)),0);}
+  function applyMaintenanceExpenseCost(previousExpense,nextExpense){
+    if(previousExpense&&isVehiclePrepExpense(previousExpense)){const oldCar=(state.cars||[]).find(car=>String(car.id)===String(previousExpense.carId));if(oldCar)oldCar.prepCost=Math.max(0,amount(oldCar.prepCost)-amount(previousExpense.carPrepApplied));}
+    if(nextExpense&&nextExpense.category==="صيانة"){
+      const car=(state.cars||[]).find(item=>String(item.id)===String(nextExpense.carId||""));
+      const samePreviouslyLinked=previousExpense&&String(previousExpense.carId||"")===String(nextExpense.carId||"");
+      if(!car||(!samePreviouslyLinked&&isSoldCar(car)))throw new Error("اختر سيارة متاحة من المخزون لربط مصروف الصيانة بها.");
+      if(amount(nextExpense.amount)<=0)throw new Error("يجب أن يكون مبلغ الصيانة أكبر من صفر.");
+      nextExpense.carPrepApplied=amount(nextExpense.amount);car.prepCost=amount(car.prepCost)+nextExpense.carPrepApplied;
+    }else if(nextExpense){nextExpense.carPrepApplied=0;nextExpense.carId="";}
+  }
   function carPaid(car) {
     if (financialLedgerLoaded && car && car.id) {
       return Math.max(0,financialTransactions.filter(tx=>
@@ -721,7 +762,7 @@
     const carRemainingTotal = cars.reduce((sum,c) => sum + carRemaining(c), 0);
     const receivableDebts = (state.debts || []).filter(d => String(d.nature || "").includes("لنا")).reduce((sum,d)=>sum+debtRemaining(d),0);
     const payableDebts = (state.debts || []).filter(d => String(d.nature || "").includes("علينا")).reduce((sum,d)=>sum+debtRemaining(d),0);
-    const expenses = (state.expenses || []).reduce((sum,e)=>sum+amount(e.amount),0);
+    const expenses = operatingExpenseTotal(state.expenses || []);
     const capitalIn = (state.capital || []).reduce((sum,c)=>sum+amount(c.deposited),0);
     const capitalOut = (state.capital || []).reduce((sum,c)=>sum+amount(c.withdrawn),0);
     const profitFromPeople = (state.capital || []).filter(c=>c.profitLossType==="ربح من شخص").reduce((sum,c)=>sum+amount(c.profitLossAmount),0);
@@ -818,10 +859,12 @@
     const shareInfo = amount(c.partnerContribution) > 0
       ? '<div class="data-cell"><span>الشريك المساهم</span><strong>' + esc(c.partnerName || "—") + '</strong></div><div class="data-cell"><span>مبلغ الشراكة</span><strong class="positive">' + money(c.partnerContribution) + '</strong></div>'
       : '';
-    return '<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">' + esc(c.model || "سيارة بدون اسم") + '</div><div class="data-card-sub">' + dateText(c.date) + ' · ' + esc(c.customer || "بدون عميل") + '</div></div>' + badge(c.status || "قيد البيع", c.status==="كاش"||c.status==="مباع"?"ok":(remaining>0?"warn":"gold")) + '</div><div class="data-card-grid"><div class="data-cell"><span>تكلفة الشراء والتجهيز</span><strong>' + money(cost) + '</strong></div><div class="data-cell"><span>سعر البيع</span><strong>' + money(c.salePrice) + '</strong></div><div class="data-cell"><span>المدفوع</span><strong class="positive">' + money(carPaid(c)) + '</strong></div><div class="data-cell"><span>المتبقي</span><strong class="' + (remaining>0?"negative":"positive") + '">' + money(remaining) + '</strong></div>' + shareInfo + '</div><div class="card-actions"><button class="btn btn-outline btn-small" data-action="edit" data-collection="cars" data-id="' + esc(c.id) + '">تعديل</button><button class="btn btn-danger btn-small" data-action="delete" data-collection="cars" data-id="' + esc(c.id) + '">حذف</button></div></article>';
+    return '<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">' + esc(c.model || "سيارة بدون اسم") + '</div><div class="data-card-sub">' + dateText(c.date) + ' · ' + esc(c.customer || "بدون عميل") + '</div></div>' + badge(c.status || "قيد البيع", c.status==="كاش"||c.status==="مباع"?"ok":(remaining>0?"warn":"gold")) + '</div><div class="data-card-grid"><div class="data-cell"><span>تكلفة الشراء والتجهيز</span><strong>' + money(cost) + '</strong></div><div class="data-cell"><span>تكلفة التجهيز</span><strong>' + money(c.prepCost) + '</strong></div><div class="data-cell"><span>سعر البيع</span><strong>' + money(c.salePrice) + '</strong></div><div class="data-cell"><span>المدفوع</span><strong class="positive">' + money(carPaid(c)) + '</strong></div><div class="data-cell"><span>المتبقي</span><strong class="' + (remaining>0?"negative":"positive") + '">' + money(remaining) + '</strong></div>' + shareInfo + '</div><div class="card-actions"><button class="btn btn-outline btn-small" data-action="edit" data-collection="cars" data-id="' + esc(c.id) + '">تعديل</button><button class="btn btn-danger btn-small" data-action="delete" data-collection="cars" data-id="' + esc(c.id) + '">حذف</button></div></article>';
   }
   function expenseCard(e) {
-    return '<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">' + esc(e.description || e.category || "مصروف") + '</div><div class="data-card-sub">' + esc(e.category || "عام") + ' · ' + dateText(e.date) + '</div></div>' + badge(e.paymentMethod || "غير محدد","gold") + '</div><div class="data-card-grid"><div class="data-cell"><span>المبلغ</span><strong class="negative">' + money(e.amount) + '</strong></div><div class="data-cell"><span>المستلم / المورد</span><strong>' + esc(e.recipient || "—") + '</strong></div><div class="data-cell"><span>طريقة الدفع</span><strong>' + esc(e.paymentMethod || "—") + '</strong></div><div class="data-cell"><span>ملاحظات</span><strong>' + esc(e.notes || "—") + '</strong></div></div><div class="card-actions"><button class="btn btn-outline btn-small" data-action="edit" data-collection="expenses" data-id="' + esc(e.id) + '">تعديل</button><button class="btn btn-danger btn-small" data-action="delete" data-collection="expenses" data-id="' + esc(e.id) + '">حذف</button></div></article>';
+    const car=(state.cars||[]).find(item=>String(item.id)===String(e.carId||""));
+    const linkedPrep=isVehiclePrepExpense(e);
+    return '<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">' + esc(e.description || e.category || "مصروف") + '</div><div class="data-card-sub">' + esc(e.category || "عام") + ' · ' + dateText(e.date) + '</div></div>' + badge(e.paymentMethod || "غير محدد","gold") + '</div><div class="data-card-grid"><div class="data-cell"><span>المبلغ</span><strong class="negative">' + money(e.amount) + '</strong></div><div class="data-cell"><span>المستلم / المورد</span><strong>' + esc(e.recipient || "—") + '</strong></div><div class="data-cell"><span>طريقة الدفع</span><strong>' + esc(e.paymentMethod || "—") + '</strong></div>' + (car?'<div class="data-cell"><span>السيارة المرتبطة</span><strong>'+esc(car.model||"—")+'</strong></div>':'') + (linkedPrep?'<div class="data-cell"><span>أضيف إلى تكلفة تجهيز السيارة</span><strong class="positive">'+money(e.carPrepApplied)+'</strong></div>':'') + '<div class="data-cell"><span>ملاحظات</span><strong>' + esc(e.notes || "—") + '</strong></div></div><div class="card-actions"><button class="btn btn-outline btn-small" data-action="edit" data-collection="expenses" data-id="' + esc(e.id) + '">تعديل</button><button class="btn btn-danger btn-small" data-action="delete" data-collection="expenses" data-id="' + esc(e.id) + '">حذف</button></div></article>';
   }
   function debtCard(d) {
     const rem = debtRemaining(d);
@@ -911,7 +954,7 @@
     const sales = sold.reduce((sum,car)=>sum+amount(car.salePrice),0);
     const soldCost = sold.reduce((sum,car)=>sum+amount(car.purchasePrice)+amount(car.prepCost),0);
     const allPurchaseCost = rows.cars.reduce((sum,car)=>sum+amount(car.purchasePrice)+amount(car.prepCost),0);
-    const operatingExpenses = rows.expenses.reduce((sum,expense)=>sum+amount(expense.amount),0);
+    const operatingExpenses = operatingExpenseTotal(rows.expenses);
     const profitFromPeople = rows.capital.filter(entry=>entry.profitLossType==="ربح من شخص").reduce((sum,entry)=>sum+amount(entry.profitLossAmount),0);
     const lossToPeople = rows.capital.filter(entry=>entry.profitLossType==="خسارة لشخص").reduce((sum,entry)=>sum+amount(entry.profitLossAmount),0);
     const grossProfit = sales-soldCost;
@@ -1821,7 +1864,7 @@
     const revenue = sold.reduce((s,c)=>s+amount(c.salePrice),0);
     const cost = sold.reduce((s,c)=>s+amount(c.purchasePrice)+amount(c.prepCost),0);
     const gross = revenue-cost;
-    const expenseTotal = expenses.reduce((s,e)=>s+amount(e.amount),0);
+    const expenseTotal = operatingExpenseTotal(expenses);
     const carRemainingTotal = cars.reduce((s,c)=>s+carRemaining(c),0);
     const debtRemainingTotal = debts.filter(d=>String(d.nature||"").includes("لنا")).reduce((s,d)=>s+debtRemaining(d),0);
     const capitalIn = capital.reduce((s,c)=>s+amount(c.deposited),0);
@@ -1837,7 +1880,7 @@
       const prevSold=prevCars.filter(isSoldCar);
       const prevRevenue=prevSold.reduce((sum,c)=>sum+amount(c.salePrice),0);
       const prevCost=prevSold.reduce((sum,c)=>sum+amount(c.purchasePrice)+amount(c.prepCost),0);
-      const prevExpenses=state.expenses.filter(e=>String(e.date||"").startsWith(prevKey)).reduce((sum,e)=>sum+amount(e.amount),0);
+      const prevExpenses=operatingExpenseTotal(state.expenses.filter(e=>String(e.date||"").startsWith(prevKey)));
       const prevCapital=state.capital.filter(c=>String(c.date||"").startsWith(prevKey));
       const prevNet=prevRevenue-prevCost-prevExpenses+prevCapital.filter(c=>c.profitLossType==="ربح من شخص").reduce((sum,c)=>sum+amount(c.profitLossAmount),0)-prevCapital.filter(c=>c.profitLossType==="خسارة لشخص").reduce((sum,c)=>sum+amount(c.profitLossAmount),0);
       comparisonData={revenue:prevRevenue,expenses:prevExpenses,net:prevNet};
@@ -1919,9 +1962,18 @@
     else if (currentView === "settings") host.innerHTML = renderSettings();
     $("pageTitle").textContent = titles[currentView] || "الرئيسية";
     if(currentView==="management") renderAiConversation();
+    translateDOM(document);
+    document.querySelectorAll(".language-select").forEach(select=>{select.value=uiLanguage;});
     document.querySelectorAll(".nav-btn").forEach(btn=>btn.classList.toggle("active",btn.dataset.view===currentView));
   }
 
+  function updateConditionalEditorFields(){
+    const host=$("editorFields");if(!host)return;
+    host.querySelectorAll("[data-show-field]").forEach(wrapper=>{
+      const trigger=host.querySelector('[name="'+wrapper.dataset.showField+'"]');
+      wrapper.hidden=!trigger||trigger.value!==wrapper.dataset.showValue;
+    });
+  }
   function openEditor(collection,id) {
     const schema = schemas[collection];
     if (!schema) return;
@@ -1942,11 +1994,15 @@
         ? schema.fields.map(field=>field.key==="car_id"
           ? Object.assign({},field,{options:[{value:"",label:"— اختر السيارة —"}].concat(state.cars.map(car=>({value:String(car.id)+"|"+String(car.model||"سيارة"),label:String(car.model||"سيارة")+" · "+String(car.chassis||"")})))})
           : field)
-        : schema.fields;
+        : collection === "expenses"
+          ? schema.fields.map(field=>field.key==="carId"
+            ? Object.assign({},field,{options:[{value:"",label:"— اختر السيارة —"}].concat(state.cars.filter(car=>!isSoldCar(car)||String(car.id)===String(value.carId||"")).map(car=>({value:String(car.id),label:String(car.model||"سيارة")+" · "+String(car.chassis||"")})))})
+            : field)
+          : schema.fields;
     $("editorTitle").textContent = (item ? "تعديل " : "إضافة ") + schema.title;
     $("editorFields").innerHTML = fields.map(field=>{
       const val = value[field.key] == null ? "" : value[field.key];
-      const cls = field.full ? "full" : "";
+      const cls = (field.full ? "full " : "") + (field.showWhen ? "conditional-field" : "");
       let control = "";
       if (field.type === "select") {
         control = '<select name="' + esc(field.key) + '">' + field.options.map(opt=>{
@@ -1959,8 +2015,9 @@
       } else {
         control = '<input name="' + esc(field.key) + '" type="' + (field.type || "text") + '"' + (field.type==="number"?' min="0" step="0.01" dir="ltr"':'') + (field.type==="date"?'':'') + ' value="' + esc(val) + '"' + (field.required?' required':'') + '>';
       }
-      return '<label class="' + cls + '">' + esc(field.label) + control + '</label>';
+      return '<label class="' + cls + '"' + (field.showWhen?' data-show-field="' + esc(field.showWhen.field) + '" data-show-value="' + esc(field.showWhen.value) + '"':"") + '>' + esc(field.label) + control + '</label>';
     }).join("");
+    updateConditionalEditorFields();
     $("editorDialog").showModal();
   }
 
@@ -2029,6 +2086,9 @@
     const previousCar = collection==="cars" && editingId
       ? clone(state.cars.find(x=>String(x.id)===String(editingId)) || null)
       : null;
+    const previousExpense = collection==="expenses" && editingId
+      ? clone(state.expenses.find(x=>String(x.id)===String(editingId)) || null)
+      : null;
     const form = new FormData($("editorForm"));
     const data = {};
     schema.fields.forEach(field=>{
@@ -2095,6 +2155,8 @@
       }
       return;
     }
+    if(collection==="expenses" && data.category==="صيانة" && !data.carId){toast("اختر السيارة المرتبطة بالصيانة.","error");return;}
+    if(collection==="expenses" && data.category!=="صيانة")data.carId="";
     const negativeField = schema.fields.find(field=>field.type==="number" && data[field.key] < 0);
     if (negativeField) {
       toast("لا يمكن إدخال مبلغ سالب في حقل " + negativeField.label + ".", "error");
@@ -2160,6 +2222,11 @@
         data.id = makeId();
         state[collection].unshift(data);
       }
+      if (collection==="expenses") {
+        const savedExpense=state.expenses.find(x=>String(x.id)===String(editingId||data.id));
+        try{applyMaintenanceExpenseCost(previousExpense,savedExpense);}
+        catch(error){state=previous;toast(error.message||"تعذر ربط مصروف الصيانة بالسيارة.","error");render();return;}
+      }
       if (collection==="cars") {
         const savedCar = state.cars.find(x=>String(x.id)===String(editingId || data.id));
         try {
@@ -2199,6 +2266,10 @@
     }
     if (!confirm("هل تريد حذف هذا السجل؟ لا يمكن التراجع بعد الحفظ.")) return;
     const previous = clone(state);
+    if (collection==="expenses" && isVehiclePrepExpense(item)) {
+      const linkedCar=(state.cars||[]).find(car=>String(car.id)===String(item.carId));
+      if(linkedCar)linkedCar.prepCost=Math.max(0,amount(linkedCar.prepCost)-amount(item.carPrepApplied));
+    }
     if (collection==="cars") {
       const linkedMovements = (state.partnerMovements || []).filter(m =>
         m.type==="contribution" &&
@@ -2309,7 +2380,7 @@
   function exportCsv() {
     let rows = [], filename = currentView + ".csv";
     if (currentView==="cars") rows = state.cars.map(c=>({date:c.date,model:c.model,customer:c.customer,phone:c.phone,purchasePrice:c.purchasePrice,partnerName:c.partnerName,partnerContribution:c.partnerContribution,prepCost:c.prepCost,salePrice:c.salePrice,paidAmount:carPaid(c),remaining:carRemaining(c),status:c.status,notes:c.notes}));
-    else if (currentView==="expenses") rows = state.expenses.map(e=>({date:e.date,category:e.category,description:e.description,amount:e.amount,paymentMethod:e.paymentMethod,recipient:e.recipient,notes:e.notes}));
+    else if (currentView==="expenses") rows = state.expenses.map(e=>({date:e.date,category:e.category,vehicle:(state.cars.find(car=>String(car.id)===String(e.carId||""))||{}).model||"",description:e.description,amount:e.amount,addedToVehiclePreparation:e.carPrepApplied||0,paymentMethod:e.paymentMethod,recipient:e.recipient,notes:e.notes}));
     else if (currentView==="debts") rows = state.debts.map(d=>({partyName:d.partyName,nature:d.nature,description:d.description,totalAmount:d.totalAmount,paidAmount:d.paidAmount,remaining:debtRemaining(d),dueDate:d.dueDate,status:d.status,phone:d.phone}));
     else if (currentView==="capital") rows = state.capital.map(c=>({date:c.date,partner:c.partner,movementType:c.movementType,deposited:c.deposited,withdrawn:c.withdrawn,method:c.method,receiptNo:c.receiptNo,description:c.description}));
     else if (currentView==="requests") rows = requests.map(r=>({date:r.expense_date,description:r.description,amount:r.amount,status:r.status,created_at:r.created_at}));
@@ -2362,9 +2433,9 @@
       const inPeriod=value=>{const date=String(value||"");if(year!=="ALL"&&!date.startsWith(year))return false;if(month!=="ALL"&&!date.startsWith(year+"-"+String(month).padStart(2,"0")))return false;return true;};
       const periodCars=state.cars.filter(c=>inPeriod(c.date)).filter(isSoldCar);
       const periodExpenses=state.expenses.filter(e=>inPeriod(e.date));
-      const categories=new Map();periodExpenses.forEach(e=>{const key=String(e.category||"غير مصنف");categories.set(key,(categories.get(key)||0)+amount(e.amount));});
+      const categories=new Map();periodExpenses.filter(e=>!isVehiclePrepExpense(e)).forEach(e=>{const key=String(e.category||"غير مصنف");categories.set(key,(categories.get(key)||0)+amount(e.amount));});
       const sales=periodCars.reduce((sum,c)=>sum+amount(c.salePrice),0),cost=periodCars.reduce((sum,c)=>sum+amount(c.purchasePrice)+amount(c.prepCost),0);
-      const expTotal=periodExpenses.reduce((sum,e)=>sum+amount(e.amount),0);
+      const expTotal=operatingExpenseTotal(periodExpenses);
       const periodCapital=state.capital.filter(c=>inPeriod(c.date));
       const net=sales-cost-expTotal+periodCapital.filter(c=>c.profitLossType==="ربح من شخص").reduce((sum,c)=>sum+amount(c.profitLossAmount),0)-periodCapital.filter(c=>c.profitLossType==="خسارة لشخص").reduce((sum,c)=>sum+amount(c.profitLossAmount),0);
       rows=[{البند:"إيرادات البيع",المبلغ:sales},{البند:"تكلفة السيارات المباعة",المبلغ:cost},{البند:"مجمل الربح",المبلغ:sales-cost},{البند:"مصروفات التشغيل",المبلغ:expTotal},{البند:"صافي النتيجة",المبلغ:net},...Array.from(categories.entries()).map(item=>({البند:"مصروف: "+item[0],المبلغ:item[1]}))];
@@ -2452,7 +2523,9 @@
     reportSystemIssue("error","تعذر إكمال عملية في الموقع",message,"promise-error:"+message);
   });
 
+  document.querySelectorAll(".language-select").forEach(select=>select.addEventListener("change",()=>setLanguage(select.value)));
   $("employeeLogoutBtn").addEventListener("click",logout);
+  $("editorFields").addEventListener("change",event=>{if(event.target.name==="category")updateConditionalEditorFields();});
   $("editorForm").addEventListener("submit",submitEditor);
   $("closeEditorBtn").addEventListener("click",()=>$("editorDialog").close());
   $("cancelEditorBtn").addEventListener("click",()=>$("editorDialog").close());
