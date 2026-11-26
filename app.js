@@ -1149,6 +1149,95 @@
       (cards?'<div class="data-list">'+cards+'</div>':empty("لا توجد أسماء عملاء مرتبطة بالسيارات."));
   }
 
+  function renderReminders() {
+    const now=today();
+    const due=(state.debts||[]).filter(item=>debtRemaining(item)>0&&item.dueDate).map(item=>{
+      const days=Math.round((new Date(item.dueDate+"T00:00:00")-new Date(now+"T00:00:00"))/86400000);
+      return Object.assign({days},item);
+    }).sort((a,b)=>a.days-b.days);
+    const overdue=due.filter(item=>item.days<0);
+    const soon=due.filter(item=>item.days>=0&&item.days<=7);
+    const later=due.filter(item=>item.days>7);
+    const renderList=list=>list.length?'<div class="data-list">'+list.map(item=>
+      '<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">'+esc(item.partyName||"جهة غير محددة")+'</div><div class="data-card-sub">'+esc(item.description||"ذمة / قسط")+' · '+dateText(item.dueDate)+'</div></div>'+badge(item.days<0?"متأخر "+Math.abs(item.days)+" يوم":(item.days===0?"مستحق اليوم":"خلال "+item.days+" يوم"),item.days<0?"warn":"gold")+'</div><div class="data-card-grid"><div class="data-cell"><span>إجمالي الذمة</span><strong>'+money(item.totalAmount)+'</strong></div><div class="data-cell"><span>المسدد</span><strong class="positive">'+money(item.paidAmount)+'</strong></div><div class="data-cell"><span>المتبقي</span><strong class="negative">'+money(debtRemaining(item))+'</strong></div><div class="data-cell"><span>الهاتف</span><strong>'+esc(item.phone||"—")+'</strong></div></div><div class="card-actions"><button class="btn btn-outline btn-small" data-action="edit" data-collection="debts" data-id="'+esc(item.id)+'">فتح الذمة</button></div></article>'
+    ).join("")+'</div>':empty("لا توجد استحقاقات في هذه المجموعة.");
+    const withoutDue=(state.cars||[]).filter(car=>isSoldCar(car)&&carRemaining(car)>0);
+    return heading("التنبيهات والاستحقاقات","الأقساط المتأخرة والقريبة، والأرصدة التي لا تحتوي على تاريخ استحقاق.",'<button class="btn btn-outline btn-small" data-action="print">طباعة</button>')+
+      '<div class="kpi-grid">'+kpi("أقساط متأخرة",overdue.length,"تجاوزت موعدها","red")+kpi("مستحقة خلال 7 أيام",soon.length,"تحتاج متابعة","gold")+kpi("مواعيد لاحقة",later.length,"بعد أكثر من أسبوع","blue")+kpi("أرصدة بلا موعد",withoutDue.length,"تحتاج جدولة","")+'</div>'+
+      '<section class="panel section-gap"><h3>متأخرة عن موعدها</h3>'+renderList(overdue)+'</section>'+
+      '<section class="panel section-gap"><h3>مستحقة خلال أسبوع</h3>'+renderList(soon)+'</section>'+
+      '<section class="panel section-gap"><h3>مواعيد قادمة</h3>'+renderList(later)+'</section>'+
+      '<section class="panel section-gap"><h3>سيارات لها رصيد بلا تاريخ استحقاق</h3>'+(withoutDue.length?'<div class="summary-list">'+withoutDue.map(car=>'<div class="summary-line"><span>'+esc(car.customer||"عميل غير محدد")+' · '+esc(car.model||"سيارة")+'</span><strong class="negative">'+money(carRemaining(car))+'</strong></div>').join("")+'</div>':empty("لا توجد أرصدة سيارات دون استحقاق."))+'</section>';
+  }
+
+  function renderAudit() {
+    const rows=auditEntries.slice(0,120);
+    const labels={create:"إضافة",update:"تعديل",delete:"حذف",close:"تقفيل",reopen:"إعادة فتح",restore:"استعادة",backup:"نسخ احتياطي",reversal:"عكس حركة",system:"نظام"};
+    const cards=rows.map(item=>
+      '<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">'+esc(labels[item.event_type]||item.event_type)+' · '+esc(item.entity_type)+'</div><div class="data-card-sub">'+esc(item.entity_id||"")+' · '+esc(item.created_at||"")+'</div></div>'+badge(labels[item.event_type]||item.event_type,item.event_type==="delete"?"warn":"gold")+'</div><div class="data-card-sub">'+esc(item.description||"")+'</div>'+
+      ((item.before_data||item.after_data)?'<details class="formula-detail"><summary>عرض تفاصيل التغيير قبل وبعد</summary><div><strong>قبل</strong><pre>'+esc(JSON.stringify(item.before_data||null,null,2))+'</pre><strong>بعد</strong><pre>'+esc(JSON.stringify(item.after_data||null,null,2))+'</pre></div></details>':"")+'</article>'
+    ).join("");
+    return heading("سجل المراجعة والتعديلات","أثر زمني للإضافات والتعديلات والحذف والتقفيل والتسويات.",'<button class="btn btn-outline btn-small" data-action="refresh-audit">تحديث السجل</button><button class="btn btn-outline btn-small" data-action="print">طباعة</button>')+
+      (cards?'<div class="data-list">'+cards+'</div>':empty("لا توجد أحداث مراجعة مسجلة بعد."));
+  }
+
+  async function createCloudBackup(type) {
+    const payload={state:clone(state),financialTransactions:clone(financialTransactions),cashReconciliations:clone(cashReconciliations)};
+    const label=type==="daily"?"نسخة تلقائية يومية "+today():"نسخة يدوية "+new Date().toLocaleString("ar-EG");
+    const result=await db.from("app_backups").insert({
+      user_id:session.user.id,created_by:session.user.id,backup_type:type,label,payload
+    }).select("id,created_at,backup_type,label").single();
+    if(result.error)throw result.error;
+    backupEntries.unshift(result.data);
+    await writeAuditEvent({event_type:"backup",entity_type:"app_backups",entity_id:result.data.id,description:label});
+    return result.data;
+  }
+
+  function renderBackups() {
+    const rows=backupEntries.slice(0,60);
+    const labels={daily:"تلقائية",manual:"يدوية",migration_baseline:"قبل التطوير",before_restore:"قبل الاستعادة"};
+    const cards=rows.map(item=>
+      '<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">'+esc(item.label||"نسخة احتياطية")+'</div><div class="data-card-sub">'+esc(item.created_at||"")+'</div></div>'+badge(labels[item.backup_type]||item.backup_type,"gold")+'</div><div class="card-actions"><button class="btn btn-outline btn-small" data-action="restore-backup" data-id="'+esc(item.id)+'">استعادة النسخة</button></div></article>'
+    ).join("");
+    return heading("النسخ الاحتياطي والاستعادة","نسخ يومية تلقائية ونسخ يدوية محفوظة في قاعدة البيانات، مع نسخة قابلة للتنزيل.",'<button class="btn btn-primary btn-small" data-action="create-backup">إنشاء نسخة الآن</button><button class="btn btn-outline btn-small" data-action="backup-json">تنزيل JSON</button>')+
+      '<div class="kpi-grid">'+kpi("النسخ المحفوظة",backupEntries.length,"في التخزين السحابي","blue")+kpi("النسخ اليومية",backupEntries.filter(x=>x.backup_type==="daily").length,"تُنشأ عند أول دخول يومي","green")+kpi("النسخ اليدوية",backupEntries.filter(x=>x.backup_type==="manual").length,"بقرار المدير","gold")+'</div>'+
+      (cards?'<div class="data-list">'+cards+'</div>':empty("لا توجد نسخ احتياطية بعد."))+
+      '<p class="panel-note section-gap">الاستعادة تحفظ سجل الحركات المالي ولا تحذف قيودًا تاريخية؛ عند اختلاف بيانات المصروفات أو رأس المال تُسجل تسويات عكسية للحفاظ على الأثر المحاسبي.</p>';
+  }
+
+  async function restoreCloudBackup(id) {
+    const result=await db.from("app_backups").select("*").eq("id",id).eq("user_id",session.user.id).single();
+    if(result.error){toast("تعذر تحميل النسخة: "+result.error.message,"error");return;}
+    const snapshot=result.data.payload||{};
+    const target=snapshot.state&&typeof snapshot.state==="object"?snapshot.state:snapshot;
+    if(!target||typeof target!=="object"||!Array.isArray(target.cars)||!Array.isArray(target.expenses)){
+      toast("صيغة النسخة غير صالحة أو لا تحتوي على بيانات التطبيق الأساسية.","error");return;
+    }
+    if(!confirm("سيتم استبدال بيانات التطبيق بهذه النسخة. سيظل دفتر الحركات المالي محفوظاً، وستُسجل التسويات اللازمة بدل حذف الحركات. هل تريد المتابعة؟"))return;
+    const before=clone(state);
+    try{
+      await createCloudBackup("before_restore");
+      state=normaliseState(target);
+      const saved=await saveState(true);
+      if(!saved)throw new Error("تعذر حفظ بيانات النسخة المستعادة.");
+      await syncCashbookWithAppState(state);
+      await writeAuditEvent({event_type:"restore",entity_type:"app_backups",entity_id:id,description:"استعادة بيانات التطبيق من نسخة محفوظة؛ دفتر الحركات ظل append-only"});
+      render();toast("تمت استعادة بيانات التطبيق مع الاحتفاظ بسجل الحركات المالية.","success");
+    }catch(error){
+      state=before;
+      toast("تعذرت الاستعادة: "+(error.message||"خطأ غير معروف"),"error");
+      render();
+    }
+  }
+
+  async function createManualBackup() {
+    try{
+      const result=await createCloudBackup("manual");
+      render();
+      toast("تم حفظ النسخة الاحتياطية: "+result.label,"success");
+    }catch(error){toast("تعذر إنشاء النسخة: "+error.message,"error");}
+  }
+
   function renderOverview() {
     const m = metrics();
     const recent = (state.cars || []).slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))).slice(0,4);
