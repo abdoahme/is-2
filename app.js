@@ -219,7 +219,7 @@
         await loadAdminState();
         await loadFinancialOperations();
         await loadRequests();
-        await loadStaff();
+        try { await loadStaff(); } catch (staffError) { staffRows=[]; console.warn("staff dashboard unavailable",staffError.message); }
         $("bootScreen").hidden = true;
         $("employeeShell").hidden = true;
         $("appShell").hidden = false;
