@@ -1521,6 +1521,46 @@
       '<p class="panel-note section-gap">الاستعادة تحفظ سجل الحركات المالي ولا تحذف قيودًا تاريخية؛ عند اختلاف بيانات المصروفات أو رأس المال تُسجل تسويات عكسية للحفاظ على الأثر المحاسبي.</p>';
   }
 
+  async function resetCurrentAccountData() {
+    if(role!=="admin" || !session || !session.user) {
+      toast("إعادة الضبط متاحة لمدير النظام فقط.","error");
+      return;
+    }
+    const first=confirm("تحذير نهائي: سيتم مسح بيانات التشغيل للحساب الحالي (السيارات، المصروفات، الذمم، رأس المال، الشركاء، دفتر الحركة ومطابقات الخزينة). ستُحفظ نسخة احتياطية كاملة قبل المسح. هل تريد المتابعة؟");
+    if(!first)return;
+    const typed=prompt("لتأكيد العملية اكتب RESET كما هي. لن يتم تنفيذ أي حذف إذا لم تكتبها بشكل صحيح.");
+    if(typed!=="RESET") {
+      toast("تم إلغاء إعادة الضبط؛ لم يتم حذف أي بيانات.","");
+      return;
+    }
+    try {
+      setSync("إنشاء نسخة وإعادة ضبط البيانات","busy");
+      const result=await db.rpc("reset_my_is_motors_data");
+      if(result.error)throw result.error;
+      state=normaliseState({appSettings:state.appSettings});
+      persistedState=clone(state);
+      financialTransactions=[];
+      cashReconciliations=[];
+      const refreshed=await db.from("app_backups").select("id,created_at,backup_type,label")
+        .eq("user_id",session.user.id).order("created_at",{ascending:false}).limit(60);
+      if(refreshed.error)throw refreshed.error;
+      backupEntries=refreshed.data||[];
+      const audit=await db.from("audit_logs").select("id,created_at,event_type,entity_type,entity_id,description,before_data,after_data")
+        .eq("user_id",session.user.id).order("created_at",{ascending:false}).limit(150);
+      if(audit.error)throw audit.error;
+      auditEntries=audit.data||[];
+      setSync("تم الحفظ","");
+      currentView="overview";
+      $("globalSearch").value="";
+      render();
+      const backupId=result.data&&result.data.backup_id?result.data.backup_id:"";
+      toast("تمت إعادة ضبط بيانات التشغيل بنجاح. النسخة الاحتياطية محفوظة في قسم النسخ الاحتياطي."+(backupId?" رقم النسخة: "+backupId:""),"success");
+    } catch(error) {
+      setSync("تعذر إعادة الضبط","offline");
+      toast("لم تتم إعادة الضبط: "+(error.message||"خطأ غير معروف"),"error");
+    }
+  }
+
   async function restoreCloudBackup(id) {
     const result=await db.from("app_backups").select("*").eq("id",id).eq("user_id",session.user.id).single();
     if(result.error){toast("تعذر تحميل النسخة: "+result.error.message,"error");return;}
@@ -1805,6 +1845,7 @@
       '<div class="summary-line"><span>سجل البيانات</span><strong>' + (recordId ? "موجود ومحفوظ" : "سيتم إنشاؤه عند الحفظ") + '</strong></div>' +
       '</div><p class="panel-note section-gap">صلاحيات القراءة والكتابة تتحكم بها سياسات قاعدة البيانات نفسها، وليس شكل الواجهة.</p></section>' +
       '<section class="panel"><h3>نسخة احتياطية للبيانات</h3><p class="panel-note">يمكنك تنزيل نسخة JSON من بيانات الحساب الحالي للاحتفاظ بها. هذا لا يحذف أو يغيّر البيانات على قاعدة البيانات.</p><button class="btn btn-outline" data-action="backup-json">تنزيل نسخة احتياطية</button></section></div>' +
+      '<section class="panel section-gap"><h3>إعادة ضبط بيانات النظام</h3><p class="panel-note">يمسح سيارات ومصروفات وذمم ورأس مال وحركات الشركاء ودفتر الحركات ومطابقات الخزينة للحساب الحالي فقط. تُنشأ نسخة سحابية كاملة قبل التنفيذ. تبقى إعدادات النظام وحساب المدير وسجل المراجعة والنسخ الاحتياطية وطلبات الموظفين وإشعارات النظام محفوظة.</p><div class="card-actions"><button class="btn btn-danger" data-action="reset-account-data">إعادة ضبط بيانات النظام</button></div><p class="panel-note">طلبات الموظفين محفوظة لأنها مرتبطة بحسابات الموظفين ولا يوجد بها حقل يحدد مالك المعرض. يمكن استعادتها من النسخة الاحتياطية عند الحاجة.</p></section>' +
       '<section class="panel section-gap"><h3>روابط الإدارة والتطوير</h3><div class="link-grid">' +
       '<a class="link-card" href="https://is-motors.vercel.app" target="_blank" rel="noopener"><strong>الموقع الرئيسي</strong><span>https://is-motors.vercel.app</span></a>' +
       '<a class="link-card" href="https://is-motors-admin.vercel.app" target="_blank" rel="noopener"><strong>بوابة الإدارة</strong><span>https://is-motors-admin.vercel.app</span></a>' +
@@ -2608,6 +2649,7 @@
     }
     else if(action==="backup-json")await backupJson();
     else if(action==="create-backup")await createManualBackup();
+    else if(action==="reset-account-data")await resetCurrentAccountData();
     else if(action==="restore-backup")await restoreCloudBackup(btn.dataset.id);
     else if(action==="customer-statement"){selectedCustomer=btn.dataset.customer||"";currentView="customers";render();}
     else if(action==="customer-back"){selectedCustomer="";render();}
