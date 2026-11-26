@@ -1420,12 +1420,36 @@
     return '<section class="panel section-gap management-recommendations"><div class="section-title-row"><div><h3>اقتراحات الإدارة</h3><p class="panel-note">توصيات تلقائية مبنية على البيانات المسجلة، وليست قرارات تنفذ دون مراجعتك.</p></div>'+badge(items.length+" توصية","gold")+'</div><div class="recommendation-list">'+cards+'</div>'+(compact&&items.length>4?'<div class="page-actions section-gap"><button class="btn btn-outline btn-small" data-action="go-view" data-view="management">عرض كل الاقتراحات</button></div>':"")+'</section>';
   }
 
+  function adminHealthSnapshot() {
+    const current=today();
+    const cashDates=Array.from(new Set((financialTransactions||[]).filter(tx=>tx.payment_method==="cash"&&tx.transaction_date<current).map(tx=>tx.transaction_date)))
+      .filter(date=>!(cashReconciliations||[]).some(item=>item.reconciliation_date===date));
+    const differences=(cashReconciliations||[]).filter(item=>Math.abs(amount(item.cash_difference))>=0.01);
+    const pending=requests.filter(item=>item.status==="pending");
+    const stale=pending.filter(item=>item.created_at&&Math.floor((Date.now()-new Date(item.created_at).getTime())/86400000)>=2);
+    const missingExpenseDetails=(state.expenses||[]).filter(item=>!item.date||!item.category).length;
+    const score=Math.max(0,Math.min(100,100-cashDates.length*8-differences.length*15-pending.length*4-missingExpenseDetails*2));
+    return {score,status:score>=90?"ممتاز":(score>=75?"جيد":(score>=55?"يحتاج متابعة":"يتطلب تدخلًا")),cashDates:cashDates.length,differences:differences.length,pending:pending.length,stale:stale.length,missingExpenseDetails};
+  }
+
+  function renderAdminHealthPanel() {
+    const h=adminHealthSnapshot(), expensesByCategory=new Map();
+    (state.expenses||[]).forEach(item=>{const key=String(item.category||"غير مصنف");expensesByCategory.set(key,(expensesByCategory.get(key)||0)+amount(item.amount));});
+    const categories=Array.from(expensesByCategory.entries()).sort((a,b)=>b[1]-a[1]).slice(0,6);
+    const max=categories.reduce((m,item)=>Math.max(m,item[1]),0)||1;
+    const checks=[["مطابقات الخزينة غير المكتملة",h.cashDates,"يوم نقدي سابق دون مطابقة"],["فروق المطابقة المسجلة",h.differences,"مطابقة بها فرق يحتاج مراجعة"],["طلبات الموظفين المعلقة",h.pending,"طلب بانتظار قرار الإدارة"],["طلبات متأخرة عن يومين",h.stale,"طلب يحتاج حسمًا أو متابعة"],["مصروفات ناقصة التاريخ أو التصنيف",h.missingExpenseDetails,"سجل يحتاج استكمال البيانات"]];
+    return '<section class="panel section-gap admin-health-panel"><div class="section-title-row"><div><h3>مؤشر صحة الإدارة والرقابة المالية</h3><p class="panel-note">مؤشر إرشادي من المطابقات والطلبات واكتمال بيانات المصروفات، وليس تقييمًا محاسبيًا معتمدًا.</p></div>'+badge(h.status,h.score>=90?"ok":(h.score>=70?"gold":"warn"))+'</div><div class="health-score-row"><div class="health-score"><strong>'+h.score+'</strong><span>/ 100</span></div><div class="health-score-copy"><strong>'+esc(h.status)+'</strong><p>إغلاق الملاحظات الرقابية يرفع المؤشر. لا يغيّر هذا المؤشر أي سجل أو رصيد.</p></div></div><div class="health-check-list">'+checks.map(item=>'<div class="health-check"><span>'+esc(item[0])+'<small>'+esc(item[2])+'</small></span>'+badge(String(item[1]),item[1]?"warn":"ok")+'</div>').join("")+'</div></section>'+
+      '<section class="panel section-gap"><div class="section-title-row"><div><h3>تحليل مصروفات التشغيل حسب البند</h3><p class="panel-note">توزيع المصروفات المسجلة؛ الأرقام للمتابعة ولا تُنشئ قيودًا مالية.</p></div>'+badge(money((state.expenses||[]).reduce((sum,item)=>sum+amount(item.amount),0)),"gold")+'</div>'+(categories.length?'<div class="expense-category-bars">'+categories.map(item=>'<div class="expense-category-row"><div class="expense-category-label"><span>'+esc(item[0])+'</span><strong>'+money(item[1])+'</strong></div><div class="expense-category-track"><i style="width:'+Math.max(2,Math.round(item[1]/max*100))+'%"></i></div></div>').join("")+'</div>':empty("لا توجد مصروفات لتحليلها."))+'</section>';
+  }
+
   function renderManagementPage() {
     const items=managementRecommendations();
     const urgent=items.filter(item=>item.level==="urgent").length;
     const follow=items.filter(item=>item.level==="warning").length;
-    return heading("لوحة الإدارة","مركز متابعة إداري يجمع سجل المراجعة والاقتراحات المبنية على حركة المعرض.")+
-      '<div class="kpi-grid">'+kpi("توصيات عاجلة",urgent,"تحتاج مراجعة فورية",urgent?"red":"green")+kpi("بنود للمتابعة",follow,"تحتاج إجراء إداري",follow?"gold":"green")+kpi("أحداث سجل المراجعة",auditEntries.length,"آخر الأحداث المحمّلة","blue")+'</div>'+
+    const health=adminHealthSnapshot();
+    return heading("لوحة الإدارة","مركز متابعة إداري يجمع الرقابة المالية ومؤشرات الأداء وسجل المراجعة.",'<button class="btn btn-outline btn-small" data-action="print">طباعة لوحة الإدارة</button>')+
+      '<div class="kpi-grid">'+kpi("صحة الإدارة",health.score+"/100",health.status,health.score>=90?"green":(health.score>=70?"gold":"red"))+kpi("توصيات عاجلة",urgent,"تحتاج مراجعة فورية",urgent?"red":"green")+kpi("بنود للمتابعة",follow,"تحتاج إجراء إداري",follow?"gold":"green")+kpi("أحداث سجل المراجعة",auditEntries.length,"آخر الأحداث المحمّلة","blue")+'</div>'+
+      renderAdminHealthPanel()+
       renderManagementSuggestions(false)+
       '<section class="panel section-gap"><div class="section-title-row"><div><h3>آخر أحداث المراجعة</h3><p class="panel-note">تظل التفاصيل الكاملة محفوظة في سجل المراجعة.</p></div><button class="btn btn-outline btn-small" data-action="go-view" data-view="audit">فتح سجل المراجعة</button></div>'+
       (auditEntries.length?'<div class="summary-list">'+auditEntries.slice(0,5).map(item=>'<div class="summary-line"><span>'+esc(item.description||item.entity_type||"حدث إداري")+'<small class="sub-line">'+esc(item.entity_type||"")+'</small></span><strong>'+esc(item.created_at||"")+'</strong></div>').join("")+'</div>':empty("لا توجد أحداث مراجعة مسجلة بعد."))+'</section>';
@@ -2087,6 +2111,10 @@
       const snap=closure?closure.snapshot:buildPeriodSnapshot(year+"-01-01",year+"-12-31","السنة "+year);
       rows=[["إيرادات السنة",snap.sales],["تكلفة السيارات المباعة",snap.soldCost],["مجمل الربح",snap.grossProfit],["مصروفات التشغيل",snap.operatingExpenses],["أرباح من أشخاص",snap.profitFromPeople],["خسائر لأشخاص",snap.lossToPeople],["صافي النتيجة السنوية",snap.netResult],["المتبقي المستحق",snap.totalReceivables]].map(x=>({البند:x[0],المبلغ:x[1]}));
       filename="تقفيل-سنوي-"+year+".csv";
+    } else if (currentView==="management") {
+      const h=adminHealthSnapshot();
+      rows=[{metric:"مؤشر صحة الإدارة",value:h.score,unit:"من 100"},{metric:"مطابقات خزينة غير مكتملة",value:h.cashDates},{metric:"فروق مطابقة مسجلة",value:h.differences},{metric:"طلبات موظفين معلقة",value:h.pending},{metric:"طلبات متأخرة أكثر من يومين",value:h.stale},{metric:"مصروفات ناقصة التاريخ أو التصنيف",value:h.missingExpenseDetails}];
+      filename="مؤشرات-الإدارة.csv";
     } else { toast("افتح صفحة بيانات أولاً لتصديرها.","error"); return; }
     if (!rows.length) { toast("لا توجد بيانات للتصدير.","error"); return; }
     const keys = Object.keys(rows[0]);
