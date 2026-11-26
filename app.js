@@ -278,30 +278,39 @@
   }
   function carRemaining(car) { return Math.max(0, amount(car.salePrice) - carPaid(car)); }
   function debtRemaining(debt) { return Math.max(0, amount(debt.totalAmount) - amount(debt.paidAmount)); }
+  function isSoldCar(car) {
+    const soldStatuses = ["كاش","متبقي","تقسيط","مباع"];
+    return soldStatuses.includes(String(car && car.status || "").trim()) ||
+      (!String(car && car.status || "").trim() && amount(car && car.salePrice) > 0);
+  }
+
   function metrics() {
-    const cars = state.cars;
-    const sold = cars.filter(c => amount(c.salePrice) > 0);
-    const inventory = cars.filter(c => !["كاش","متبقي","تقسيط","مباع"].includes(c.status));
+    const cars = state.cars || [];
+    const sold = cars.filter(isSoldCar);
+    const inventory = cars.filter(c => !isSoldCar(c));
+    const sales = sold.reduce((sum,c) => sum + amount(c.salePrice), 0);
+    const soldCost = sold.reduce((sum,c) => sum + amount(c.purchasePrice) + amount(c.prepCost), 0);
     const purchase = cars.reduce((sum,c) => sum + amount(c.purchasePrice) + amount(c.prepCost), 0);
-    const profit = sold.reduce((sum,c) => sum + amount(c.salePrice) - amount(c.purchasePrice) - amount(c.prepCost), 0);
+    const profit = sales - soldCost;
     const carRemainingTotal = cars.reduce((sum,c) => sum + carRemaining(c), 0);
-    const receivableDebts = state.debts.filter(d => String(d.nature || "").includes("لنا")).reduce((sum,d)=>sum+debtRemaining(d),0);
-    const payableDebts = state.debts.filter(d => String(d.nature || "").includes("علينا")).reduce((sum,d)=>sum+debtRemaining(d),0);
-    const expenses = state.expenses.reduce((sum,e)=>sum+amount(e.amount),0);
-    const capitalIn = state.capital.reduce((sum,c)=>sum+amount(c.deposited),0);
-    const capitalOut = state.capital.reduce((sum,c)=>sum+amount(c.withdrawn),0);
-    const profitFromPeople = state.capital.filter(c=>c.profitLossType==="ربح من شخص").reduce((sum,c)=>sum+amount(c.profitLossAmount),0);
-    const lossToPeople = state.capital.filter(c=>c.profitLossType==="خسارة لشخص").reduce((sum,c)=>sum+amount(c.profitLossAmount),0);
+    const receivableDebts = (state.debts || []).filter(d => String(d.nature || "").includes("لنا")).reduce((sum,d)=>sum+debtRemaining(d),0);
+    const payableDebts = (state.debts || []).filter(d => String(d.nature || "").includes("علينا")).reduce((sum,d)=>sum+debtRemaining(d),0);
+    const expenses = (state.expenses || []).reduce((sum,e)=>sum+amount(e.amount),0);
+    const capitalIn = (state.capital || []).reduce((sum,c)=>sum+amount(c.deposited),0);
+    const capitalOut = (state.capital || []).reduce((sum,c)=>sum+amount(c.withdrawn),0);
+    const profitFromPeople = (state.capital || []).filter(c=>c.profitLossType==="ربح من شخص").reduce((sum,c)=>sum+amount(c.profitLossAmount),0);
+    const lossToPeople = (state.capital || []).filter(c=>c.profitLossType==="خسارة لشخص").reduce((sum,c)=>sum+amount(c.profitLossAmount),0);
     const profitLossNet = profitFromPeople - lossToPeople;
+    const capitalNet = capitalIn-capitalOut+profitLossNet;
+    const netProfit = profit-expenses+profitLossNet;
     return {
-      cars:cars.length, inventory:inventory.length, sold:sold.length, purchase, profit,
+      cars:cars.length, inventory:inventory.length, sold:sold.length,
+      sales, soldCost, purchase, profit, grossProfit:profit, netProfit,
       carRemainingTotal, receivableDebts, payableDebts, expenses, capitalIn, capitalOut,
-      profitFromPeople, lossToPeople, profitLossNet,
-      capitalNet:capitalIn-capitalOut+profitLossNet,
+      profitFromPeople, lossToPeople, profitLossNet, capitalNet,
       totalReceivables:carRemainingTotal+receivableDebts
     };
   }
-
 
   function worsenedPartnerBalance(previousState) {
     const nextState = state;
@@ -411,34 +420,52 @@
     return items.length ? '<div class="data-list">' + items.map(renderer).join("") + '</div>' : empty(noText || "لا توجد بيانات مسجلة حتى الآن.");
   }
 
+  function formulaDetail(title, formula, explanation) {
+    return '<details class="formula-detail"><summary>كيف حُسب ' + esc(title) + '؟</summary><div><strong>' + esc(formula) + '</strong><p>' + esc(explanation) + '</p></div></details>';
+  }
+
   function renderOverview() {
     const m = metrics();
-    const recent = state.cars.slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))).slice(0,4);
-    const topExpenses = state.expenses.slice().sort((a,b)=>amount(b.amount)-amount(a.amount)).slice(0,5);
-    return '<div class="kpi-grid">' +
-      kpi("إجمالي السيارات",m.cars,"منها " + m.inventory + " قيد البيع","gold") +
-      kpi("إجمالي تكلفة الشراء والتجهيز",money(m.purchase),"قيمة مشتريات وتجهيز السيارات","") +
-      kpi("أرباح السيارات المباعة",money(m.profit),"سعر البيع ناقص تكلفة السيارة","green") +
-      kpi("إجمالي المبالغ المتبقية",money(m.totalReceivables),"مستحقات السيارات والذمم","red") +
-      kpi("إجمالي المصروفات",money(m.expenses),"كل المصروفات المسجلة","blue") +
-      '</div><div class="two-col"><section class="panel"><h3>آخر السيارات المسجلة</h3>' +
-      (recent.length ? listMarkup(recent,carCard,"لا توجد سيارات مسجلة.") : empty("لا توجد سيارات مسجلة.")) +
-      '</section><section class="panel"><h3>ملخص مالي</h3><div class="summary-list">' +
-      '<div class="summary-line"><span>مبالغ مستحقة للمعرض من السيارات</span><strong class="negative">' + money(m.carRemainingTotal) + '</strong></div>' +
+    const recent = (state.cars || []).slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))).slice(0,4);
+    const topExpenses = (state.expenses || []).slice().sort((a,b)=>amount(b.amount)-amount(a.amount)).slice(0,5);
+    const waitingRequests = requests.filter(r=>r.status==="pending").length;
+    const dashboardDetails =
+      '<section class="panel section-gap"><div class="section-title-row"><div><h3>الشرح التفصيلي للمركز المالي</h3><p class="panel-note">كل نتيجة موضحة بمعادلتها ومصدرها حتى تعرف من أين جاء الرقم.</p></div>' +
+      badge("محسوب من السجلات الحالية","ok") + '</div>' +
+      '<div class="finance-breakdown">' +
+      '<div class="finance-line"><div><strong>إيرادات بيع السيارات</strong><small>إجمالي سعر بيع السيارات ذات حالة بيع مسجلة</small></div><b class="positive">' + money(m.sales) + '</b>' + formulaDetail("إيرادات البيع","مجموع أسعار بيع السيارات المباعة","يتم احتساب السيارة عندما تكون حالتها كاش أو متبقي أو تقسيط أو مباع. لا تدخل السيارات التي ما زالت قيد البيع.") + '</div>' +
+      '<div class="finance-line"><div><strong>تكلفة السيارات المباعة</strong><small>شراء السيارة مضافًا إليه التجهيز</small></div><b>' + money(m.soldCost) + '</b>' + formulaDetail("تكلفة السيارات المباعة","سعر الشراء + مصاريف التجهيز للسيارات المباعة","تُحسب التكلفة على السيارات التي دخلت في المبيعات، بينما السيارات غير المباعة تظهر كقيمة مخزون منفصلة.") + '</div>' +
+      '<div class="finance-line"><div><strong>مجمل ربح أو خسارة السيارات</strong><small>قبل خصم مصروفات التشغيل</small></div><b class="' + (m.grossProfit>=0?"positive":"negative") + '">' + money(m.grossProfit) + '</b>' + formulaDetail("مجمل الربح","إيرادات البيع − تكلفة السيارات المباعة","الرقم لا يخصم الإيجار والرواتب وبقية مصروفات التشغيل بعد.") + '</div>' +
+      '<div class="finance-line"><div><strong>مصروفات التشغيل</strong><small>كل المصروفات المسجلة</small></div><b class="negative">' + money(m.expenses) + '</b>' + formulaDetail("مصروفات التشغيل","مجموع مبالغ المصروفات المسجلة","يشمل البنود المسجلة في صفحة المصروفات فقط.") + '</div>' +
+      '<div class="finance-line"><div><strong>أرباح من أشخاص</strong><small>كما سُجلت في حركات رأس المال</small></div><b class="positive">' + money(m.profitFromPeople) + '</b></div>' +
+      '<div class="finance-line"><div><strong>خسائر لأشخاص</strong><small>كما سُجلت في حركات رأس المال</small></div><b class="negative">' + money(m.lossToPeople) + '</b></div>' +
+      '<div class="finance-line finance-total"><div><strong>صافي نتيجة النشاط</strong><small>بعد مصروفات التشغيل والأرباح والخسائر الإضافية</small></div><b class="' + (m.netProfit>=0?"positive":"negative") + '">' + money(m.netProfit) + '</b>' + formulaDetail("صافي نتيجة النشاط","مجمل ربح السيارات − المصروفات + أرباح الأشخاص − خسائر الأشخاص","هذه نتيجة تشغيلية مبسطة وفق الحقول الموجودة حاليًا، وليست قائمة تدفقات نقدية أو ميزانية عمومية.") + '</div>' +
+      '</div></section>';
+    const liquidity =
+      '<section class="panel section-gap"><div class="section-title-row"><div><h3>الذمم ورأس المال</h3><p class="panel-note">أرصدة قائمة بحسب البيانات المسجلة حاليًا.</p></div></div><div class="summary-list">' +
+      '<div class="summary-line"><span>مبالغ متبقية على العملاء في السيارات</span><strong class="negative">' + money(m.carRemainingTotal) + '</strong></div>' +
       '<div class="summary-line"><span>ذمم مستحقة للمعرض</span><strong class="negative">' + money(m.receivableDebts) + '</strong></div>' +
       '<div class="summary-line"><span>ذمم مستحقة على المعرض</span><strong>' + money(m.payableDebts) + '</strong></div>' +
-      '<div class="summary-line"><span>صافي حركة رأس المال</span><strong class="positive">' + money(m.capitalNet) + '</strong></div>' +
-      '<div class="summary-line"><span>أرباح من أشخاص</span><strong class="positive">' + money(m.profitFromPeople) + '</strong></div>' +
-      '<div class="summary-line"><span>خسائر لأشخاص</span><strong class="negative">' + money(m.lossToPeople) + '</strong></div>' +
-      '<div class="summary-line"><span>صافي حركة رأس المال بعد الأرباح والخسائر</span><strong class="' + (m.capitalNet >= 0 ? 'positive' : 'negative') + '">' + money(m.capitalNet) + '</strong></div>' +
-      '<div class="summary-line"><span>أرباح من أشخاص</span><strong class="positive">' + money(m.profitFromPeople) + '</strong></div>' +
-      '<div class="summary-line"><span>خسائر لأشخاص</span><strong class="negative">' + money(m.lossToPeople) + '</strong></div>' +
-      '<div class="summary-line"><span>صافي حركة رأس المال بعد الأرباح والخسائر</span><strong class="' + (m.capitalNet >= 0 ? 'positive' : 'negative') + '">' + money(m.capitalNet) + '</strong></div>' +
-      '<div class="summary-line"><span>عدد طلبات الموظفين المعلقة</span><strong>' + requests.filter(r=>r.status==="pending").length + '</strong></div>' +
-      '</div><p class="panel-note section-gap">الأرقام محسوبة مباشرة من السجلات المحفوظة في قاعدة البيانات.</p></section></div>' +
-      '<section class="panel section-gap"><h3>أعلى المصروفات المسجلة</h3>' +
-      (topExpenses.length ? '<div class="summary-list">' + topExpenses.map(e=>'<div class="summary-line"><span>' + esc(e.description || e.category || "مصروف") + '</span><strong class="negative">' + money(e.amount) + '</strong></div>').join("") + '</div>' : empty("لا توجد مصروفات مسجلة.")) +
-      '</section>';
+      '<div class="summary-line"><span>إجمالي الإيداعات في رأس المال</span><strong class="positive">' + money(m.capitalIn) + '</strong></div>' +
+      '<div class="summary-line"><span>إجمالي المسحوبات من رأس المال</span><strong class="negative">' + money(m.capitalOut) + '</strong></div>' +
+      '<div class="summary-line"><span>صافي حركة رأس المال مع الربح والخسارة</span><strong class="' + (m.capitalNet>=0?"positive":"negative") + '">' + money(m.capitalNet) + '</strong></div>' +
+      '<div class="summary-line"><span>طلبات الموظفين المعلقة</span><strong>' + waitingRequests + '</strong></div>' +
+      '</div><p class="panel-note section-gap">رصيد رأس المال ليس مرادفًا لصافي الربح، والمبالغ المتبقية ليست إيرادًا جديدًا؛ كل بند له معنى محاسبي مستقل.</p></section>';
+    return heading("لوحة المتابعة المالية","نظرة واضحة على نشاط المعرض، مع شرح تفصيلي لكل نتيجة.",'<button class="btn btn-outline btn-small" data-action="print">طباعة الملخص</button>') +
+      '<div class="kpi-grid">' +
+      kpi("إيرادات المبيعات",money(m.sales),m.sold + " سيارة بحالة بيع مسجلة","blue") +
+      kpi("مجمل ربح السيارات",money(m.grossProfit),"المبيعات ناقص تكلفة السيارات المباعة",m.grossProfit>=0?"green":"red") +
+      kpi("صافي نتيجة النشاط",money(m.netProfit),"بعد مصروفات التشغيل والربح والخسارة",m.netProfit>=0?"green":"red") +
+      kpi("مصروفات التشغيل",money(m.expenses),"مجموع بنود المصروفات","red") +
+      kpi("المبالغ المتبقية",money(m.totalReceivables),"سيارات وذمم مستحقة للمعرض","gold") +
+      '</div>' +
+      '<div class="dashboard-info-strip"><span>عدد السيارات: <b>' + m.cars + '</b></span><span>سيارات قيد البيع: <b>' + m.inventory + '</b></span><span>السيارات المباعة: <b>' + m.sold + '</b></span><span>تكلفة إجمالي السيارات المسجلة: <b>' + money(m.purchase) + '</b></span></div>' +
+      dashboardDetails +
+      '<div class="two-col section-gap"><section class="panel"><h3>أحدث السيارات المسجلة</h3>' +
+      (recent.length ? listMarkup(recent,carCard,"لا توجد سيارات مسجلة.") : empty("لا توجد سيارات مسجلة.")) +
+      '</section><section class="panel"><h3>أعلى المصروفات المسجلة</h3>' +
+      (topExpenses.length ? '<div class="summary-list">' + topExpenses.map(e=>'<div class="summary-line"><span>' + esc(e.description || e.category || "مصروف") + '<small class="sub-line">' + esc(e.category || "عام") + '</small></span><strong class="negative">' + money(e.amount) + '</strong></div>').join("") + '</div>' : empty("لا توجد مصروفات مسجلة.")) +
+      '</section></div>' + liquidity;
   }
 
   function renderCollection(collection, title, subtitle, renderer) {
@@ -548,7 +575,7 @@
     const expenses = state.expenses.filter(e=>inPeriod(e.date));
     const debts = state.debts.filter(d=>inPeriod(d.dueDate || d.date));
     const capital = state.capital.filter(c=>inPeriod(c.date));
-    const sold = cars.filter(c=>amount(c.salePrice)>0);
+    const sold = cars.filter(isSoldCar);
     const revenue = sold.reduce((s,c)=>s+amount(c.salePrice),0);
     const cost = sold.reduce((s,c)=>s+amount(c.purchasePrice)+amount(c.prepCost),0);
     const gross = revenue-cost;
