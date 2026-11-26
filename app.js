@@ -28,10 +28,47 @@
     const n = Number(normalized);
     return Number.isFinite(n) ? n : 0;
   };
-  const money = (value) => num(value).toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 2}) + " ج.م";
+  const money = (value) => num(value).toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 2}) + (uiLanguage==="en" ? " EGP" : " ج.م");
   const esc = (value) => String(value == null ? "" : value).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const dateText = (value) => value ? esc(value) : "—";
   const makeId = () => "row_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
+
+  let uiLanguage="ar";
+  try{const saved=window.localStorage.getItem("is-motors-language");if(saved==="en"||saved==="ar")uiLanguage=saved;}catch(_){}
+  const LANGUAGE_PAIRS=[["نظام الإدارة والحسابات","Management & Accounts System"],["نظام الإدارة المالية","Financial Management System"],["إدارة المعرض والحسابات","Showroom & Accounts Management"],["اتصال مشفّر بقاعدة البيانات السحابية","Encrypted cloud database connection"],["جاري الاتصال بالنظام وقاعدة البيانات...","Connecting to the system and database..."],["جارٍ التحقق من صلاحية الحساب...","Checking account permissions..."],["اختر القسم الذي تريد إدارته","Choose the section you want to manage"],["القائمة الرئيسية","Main Menu"],["نظرة عامة","Overview"],["إدارة المعرض","Showroom"],["الحسابات والشركاء","Accounts & Partners"],["التشغيل والرقابة","Operations & Control"],["لوحة الإدارة","Administration"],["التقارير والنظام","Reports & System"],["لوحة التحكم","Dashboard"],["ابحث في الصفحة الحالية...","Search this page..."],["تصدير CSV","Export CSV"],["الرئيسية","Home"],["السيارات","Vehicles"],["المصروفات","Expenses"],["مصروفات التشغيل","Operating Expenses"],["المبالغ المتبقية","Outstanding Balances"],["الذمم والأقساط","Debts & Installments"],["رأس المال والخزينة","Capital & Treasury"],["حركة الشركاء","Partner Movements"],["دفتر الحركة والخزينة","Cashbook & Treasury"],["مخزون السيارات والأرباح","Vehicle Inventory & Profits"],["حسابات العملاء","Customer Accounts"],["التنبيهات والاستحقاقات","Alerts & Due Dates"],["النسخ الاحتياطي","Backups"],["اقتراحات الإدارة","Management Suggestions"],["الموظفون والصلاحيات","Staff & Permissions"],["سجل المراجعة","Audit Log"],["التقفيل الشهري","Monthly Closing"],["التقفيل السنوي","Annual Closing"],["طلبات الموظفين","Employee Requests"],["الإعدادات والروابط","Settings & Links"],["بوابة الموظف","Employee Portal"],["موظف","Employee"],["مدير النظام","System Administrator"],["البريد الإلكتروني","Email Address"],["كلمة المرور","Password"],["تسجيل الدخول","Sign In"],["جارٍ تسجيل الدخول...","Signing in..."],["سجّل الدخول للوصول إلى لوحة المعرض حسب صلاحية حسابك.","Sign in to access the showroom dashboard according to your account permissions."],["خروج","Sign Out"],["متصل","Connected"],["لا يوجد اتصال","Offline"],["تم الحفظ","Saved"],["حفظ التعديلات","Saving Changes"],["تحميل البيانات","Loading Data"],["تحميل الدفاتر المالية","Loading Financial Records"],["تم تحميل الدفاتر","Financial Records Loaded"],["حالة الاتصال","Connection Status"],["المستخدم الحالي","Current User"],["الصلاحية","Permission"],["قاعدة البيانات","Database"],["Supabase متصل","Supabase Connected"],["موجود ومحفوظ","Available and Saved"],["نسخة احتياطية للبيانات","Data Backup"],["تنزيل نسخة احتياطية","Download Backup"],["الموقع الرئيسي","Main Website"],["الكود البرمجي على GitHub","Source Code on GitHub"],["النشر والاستضافة على Vercel","Deployment & Hosting on Vercel"],["قاعدة البيانات والصلاحيات","Database & Permissions"],["الإشعارات","Notifications"],["إغلاق","Close"],["تفعيل إشعارات الهاتف","Enable Phone Notifications"],["تصل حتى عند إغلاق الموقع بعد السماح بها","Delivered after permission, even when the site is closed"],["تمييز كمقروء","Mark as Read"],["تمت المراجعة","Reviewed"],["مقروء","Read"],["غير مقروء","Unread"],["لا توجد إشعارات حتى الآن.","There are no notifications yet."],["فتح مركز الإشعارات","Open Notification Center"],["إضافة سجل","Add Record"],["تعديل البيانات","Edit Data"],["حفظ البيانات","Save Data"],["إلغاء","Cancel"],["السيارة","Vehicle"],["المصروف","Expense"],["بيان السيارة / الموديل","Vehicle / Model"],["تاريخ الحركة","Transaction Date"],["رقم الشاسيه","Chassis Number"],["سعر الشراء","Purchase Price"],["اسم الشريك المساهم (اختياري)","Contributing Partner (Optional)"],["مبلغ مساهمة الشريك","Partner Contribution"],["نسبة ربح الشريك المتفق عليها % (اختياري)","Agreed Partner Profit Share % (Optional)"],["طريقة إيداع الشراكة","Partner Deposit Method"],["مصاريف التجهيز","Preparation Costs"],["إجمالي سعر البيع","Total Sale Price"],["حالة السيارة","Vehicle Status"],["موعد القسط القادم (اختياري)","Next Installment Date (Optional)"],["اسم العميل","Customer Name"],["رقم الهاتف","Phone Number"],["ملاحظات","Notes"],["التاريخ","Date"],["بند المصروف","Expense Category"],["البيان","Description"],["المبلغ","Amount"],["طريقة الدفع","Payment Method"],["المستلم / المورد","Recipient / Supplier"],["السيارة المرتبطة بالصيانة","Vehicle Linked to Maintenance"],["المبلغ المضاف إلى تجهيز السيارة","Amount Added to Vehicle Preparation"],["اختر السيارة","Select Vehicle"],["— اختر السيارة —","— Select Vehicle —"],["لا توجد سيارات متاحة؛ سجّل سيارة بحالة قيد البيع أولاً.","No vehicles are available. Add a vehicle with For Sale status first."],["اختر سيارة متاحة من المخزون لربط مصروف الصيانة بها.","Select an available inventory vehicle to link this maintenance expense."],["يجب أن يكون مبلغ الصيانة أكبر من صفر.","Maintenance amount must be greater than zero."],["اختر السيارة المرتبطة بالصيانة.","Select the vehicle linked to this maintenance expense."],["سيارة بدون اسم","Unnamed Vehicle"],["بدون عميل","No Customer"],["غير محدد","Not Specified"],["غير مصنف","Uncategorized"],["إيجار","Rent"],["رواتب وأجور","Salaries & Wages"],["كهرباء ومرافق","Utilities"],["مستلزمات","Supplies"],["صيانة","Maintenance"],["تسويق وإعلانات","Marketing & Advertising"],["انتقالات","Transportation"],["رسوم حكومية","Government Fees"],["أخرى","Other"],["نقداً","Cash"],["تحويل بنكي","Bank Transfer"],["شيك","Cheque"],["بطاقة","Card"],["نقداً بالخزينة","Cash in Treasury"],["شيك بنكي","Bank Cheque"],["إيداع بنكي مباشر","Direct Bank Deposit"],["رصيد افتتاحي","Opening Balance"],["قيد البيع","For Sale"],["كاش","Cash Sale"],["متبقي","Balance Due"],["تقسيط","Installments"],["مباع","Sold"],["منتظم","On Track"],["متأخر","Overdue"],["قيد المتابعة","Follow-up"],["تم السداد","Paid"],["تكلفة الشراء والتجهيز","Purchase & Preparation Cost"],["تكلفة التجهيز","Preparation Cost"],["سعر البيع","Sale Price"],["المدفوع","Paid"],["المتبقي","Remaining"],["المبلغ المدفوع","Amount Paid"],["إدارة بيانات الشراء والبيع والتحصيل والمبالغ المتبقية.","Manage vehicle purchases, sales, collections, and outstanding balances."],["تسجيل ومراجعة كل المصروفات الفعلية للمعرض.","Record and review all actual showroom expenses."],["الشريك / المودع","Partner / Depositor"],["طبيعة المبلغ","Balance Type"],["اسم العميل / الجهة","Customer / Entity Name"],["إجمالي المبلغ","Total Amount"],["المبلغ المسدد","Amount Settled"],["تاريخ الاستحقاق","Due Date"],["نوع الحركة","Transaction Type"],["المودع (داخل)","Deposited (In)"],["المسحوب (خارج)","Withdrawn (Out)"],["طريقة المعاملة","Payment Method"],["رقم الإيصال","Receipt Number"],["نوع الربح / الخسارة","Profit / Loss Type"],["قيمة الربح / الخسارة","Profit / Loss Amount"],["تحصيل من عميل","Customer Collection"],["سداد ثمن شراء سيارة","Vehicle Purchase Payment"],["سداد تجهيز سيارة","Vehicle Preparation Payment"],["حركة واردة أخرى","Other Inflow"],["حركة منصرفة أخرى","Other Outflow"],["إيداع رأس مال","Capital Deposit"],["زيادة رأس مال","Capital Increase"],["مسحوبات أرباح شركاء","Partner Profit Withdrawals"],["مسحوبات شخصية شركاء","Partner Personal Withdrawals"],["تمويل إضافي / جاري شريك","Additional Partner Funding"],["استرداد مسحوبات","Withdrawal Reversal"],["لنا (مستحق للمعرض)","Receivable (Due to Showroom)"],["علينا (مستحق على المعرض)","Payable (Due from Showroom)"],["نقداً من الخزينة","Cash from Treasury"],["تم حفظ التعديلات في قاعدة البيانات.","Changes saved to the database."],["تم تسجيل الحركة المالية في الدفتر.","Financial transaction recorded in the ledger."],["تم اعتماد الطلب وإضافته للمصروفات.","Request approved and added to expenses."],["تم إرسال الطلب بنجاح إلى الإدارة.","Request successfully sent to management."],["مجمل الربح","Gross Profit"],["صافي الربح","Net Profit"],["صافي النتيجة","Net Result"],["مصروفات الفترة","Period Expenses"],["مصروفات التشغيل","Operating Expenses"],["تكلفة السيارات المباعة","Cost of Sold Vehicles"],["إيرادات البيع","Sales Revenue"],["إيرادات بيع السيارات","Vehicle Sales Revenue"],["النسخ المحفوظة","Saved Backups"],["النسخ اليومية","Daily Backups"],["النسخ اليدوية","Manual Backups"],["إنشاء نسخة الآن","Create Backup Now"],["تنزيل JSON","Download JSON"],["لا توجد بيانات مسجلة حتى الآن.","No records have been added yet."],["لا توجد بيانات مسجلة.","No records have been added."],["لا توجد مصروفات مسجلة في الفترة المحددة.","No expenses recorded in the selected period."],["لا توجد سيارات مسجلة بعد.","No vehicles have been recorded yet."],["لم تُسجّل مساهمات شركاء بعد.","No partner contributions have been recorded yet."],["مراجعة وتقفيل الشهر","Review & Close Month"],["اعتماد التقفيل السنوي","Approve Annual Closing"],["إعادة فتح الشهر بسبب موثّق","Reopen Month with Documented Reason"],["إعادة فتح السنة بسبب موثّق","Reopen Year with Documented Reason"],["طباعة / حفظ PDF","Print / Save PDF"],["طباعة الكشف","Print Report"],["عرض كل الاقتراحات","View All Suggestions"],["المساعد الذكي للإدارة","Management AI Assistant"],["جارٍ التحليل...","Analyzing..."],["إرسال","Send"],["خاص بالمدير","Admin Only"],["تنبيهات الإدارة","Management Alerts"],["مؤشر صحة الإدارة والرقابة المالية","Management Health & Financial Control"],["تحليل مصروفات التشغيل حسب البند","Operating Expense Analysis by Category"],["طلبات الموظفين المعلقة","Pending Employee Requests"],["مطابقة الخزينة","Cash Reconciliation"],["مساهمة شريك في شراء سيارة","Partner Contribution to Vehicle Purchase"],["هل تريد حذف هذا السجل؟ لا يمكن التراجع بعد الحفظ.","Delete this record? This cannot be undone after saving."],["العربية","Arabic"]];
+  LANGUAGE_PAIRS.push(...[["التقارير والتقفيل","Reports & Closing"],["إجمالي أسعار السيارات","Total Vehicle Prices"],["إجمالي التحصيل","Total Collections"],["الذمم المستحقة لنا","Receivables Due to Us"],["إجمالي المتبقي","Total Outstanding"],["الذمة / القسط","Debt / Installment"],["الشريك","Partner"],["الذمة","Debt"],["السيارة المرتبطة (عند الحاجة)","Linked Vehicle (If Needed)"],["اسم العميل / المورد","Customer / Supplier Name"],["رقم الإيصال / المرجع","Receipt / Reference Number"],["حركة مالية جديدة","New Financial Transaction"],["سحب من رصيد شريك","Partner Balance Withdrawal"],["تاريخ السحب","Withdrawal Date"],["مبلغ السحب","Withdrawal Amount"],["طريقة الصرف","Disbursement Method"],["بيان السحب","Withdrawal Description"],["ربح من شخص","Profit from Person"],["خسارة لشخص","Loss for Person"],["أرباح من أشخاص","Profits from Individuals"],["خسائر لأشخاص","Losses for Individuals"],["لنا","Receivable"],["علينا","Payable"],["سيارات","Vehicles"],["مصروفات","Expenses"],["ذمم","Debts"],["رأس المال","Capital"],["غير متاح","Not Available"],["غير مسجل","Not Recorded"],["عام","General"],["بدون اسم","No Name"],["وارد","Inflow"],["منصرف","Outflow"],["مسدد","Paid"],["استحقاق","Due"],["تعديل","Edit"],["حذف","Delete"],["تقفيل","Closing"],["إعادة فتح","Reopen"],["نسخة تلقائية يومية","Automatic Daily Backup"],["لا توجد سيارات مسجلة.","No vehicles have been registered."],["مجموع أسعار السيارات التي سُجلت بحالة بيع داخل الفترة.","Total sale prices of vehicles marked as sold during the period."],["الشراء والتجهيز للسيارات المباعة في الفترة.","Purchase and preparation cost of vehicles sold during the period."],["المخزون غير المباع","Unsold Inventory"],["قيمة الشراء والتجهيز للسيارات التي لم تُسجل كمباعة.","Purchase and preparation value of vehicles not marked as sold."],["مجمل ربح أو خسارة السيارات","Gross Vehicle Profit or Loss"],["الإيرادات ناقص تكلفة السيارات المباعة.","Revenue minus the cost of vehicles sold."],["مجموع المصروفات المسجلة في الفترة.","Total expenses recorded during the period."],["الأرباح الإضافية المسجلة في حركة رأس المال.","Additional profits recorded in capital movements."],["الخسائر الإضافية المسجلة في حركة رأس المال.","Additional losses recorded in capital movements."],["تحصيلات العملاء المؤرخة في الفترة","Customer collections dated within the period"],["مجموع قيود التحصيل الفعلية المؤرخة داخل الفترة، بعد تسويات العكس.","Total actual collection entries dated within the period, after reversals."],["مدفوعات شراء السيارات في الفترة","Vehicle purchase payments during the period"],["المدفوعات المسجلة في دفتر الحركة لشراء السيارات.","Payments recorded in the cashbook for vehicle purchases."],["مدفوعات تجهيز السيارات في الفترة","Vehicle preparation payments during the period"],["المدفوعات المسجلة في دفتر الحركة لتجهيز السيارات.","Payments recorded in the cashbook for vehicle preparation."],["صافي الحركة النقدية في الفترة","Net cash movement during the period"],["عميل غير محدد","Unspecified Customer"],["صافي نتيجة النشاط","Net Operating Result"],["قبل المصروفات التشغيلية","Before Operating Expenses"],["للفترة المقارنة","For Comparison Period"],["من أول الشهر","Since Start of Month"],["السنة ","Year "],["اختر الشهر","Select Month"],["اختر السنة","Select Year"],["البيانات المحفوظة في قاعدة البيانات","Data Saved in Database"],["لا توجد تنبيهات إدارية حالية","There are no current management alerts"],["مؤشر صحة الإدارة","Management Health Score"],["المصروفات غير المعتادة","Unusual Expenses"],["الطلبات المعلقة","Pending Requests"],["إجمالي الإيداعات","Total Deposits"],["إجمالي المسحوبات","Total Withdrawals"],["صافي الحركة بعد الأرباح والخسائر","Net Movement After Profits and Losses"],["السيارات المباعة","Sold Vehicles"],["عدد السيارات المسجلة","Number of Registered Vehicles"],["عدد السيارات المباعة","Number of Sold Vehicles"],["إجمالي المبالغ المتبقية للسيارات","Total Outstanding Vehicle Balances"],["حالة التقفيل المالي","Financial Closing Status"],["الشهر مقفل حسب السجل المحفوظ","Month Closed According to Saved Record"],["الشهر مفتوح حسب السجل المحفوظ","Month Open According to Saved Record"],["السنة مقفلة حسب السجل المحفوظ","Year Closed According to Saved Record"],["السنة غير مقفلة حسب السجل المحفوظ","Year Open According to Saved Record"],["اختر سنة أو شهرًا محددًا لعرض مقارنة تلقائية مع الفترة السابقة.","Choose a specific year or month to compare automatically with the previous period."],["تفصيل مصروفات الفترة حسب البند","Period Expenses by Category"],["مصروفات الفترة المختارة مرتبة من الأعلى إلى الأقل.","Selected period expenses ordered from highest to lowest."],["مقارنة الأداء بالفترة السابقة","Performance Comparison with Previous Period"],["مقارنة الأداء","Performance Comparison"],["ملخص حركة الفترة","Period Movement Summary"],["مسحوبات رأس المال","Capital Withdrawals"],["مبلغ الشراكة","Partner Contribution"],["قيمة الحركة","Movement Amount"],["تاريخ الإنشاء","Creation Date"],["موظفون نشطون","Active Employees"],["حسابات موقوفة","Suspended Accounts"],["كل الحسابات","All Accounts"],["إيقاف الوصول","Suspend Access"],["تفعيل الوصول","Enable Access"],["آخر طلب","Last Request"],["طلبات معتمدة","Approved Requests"],["طلبات معلقة","Pending Requests"],["إجمالي طلبات المصروفات","Total Expense Requests"],["طباعة الملخص","Print Summary"],["تغير صافي النتيجة","Change in Net Result"],["المبيعات السابقة","Previous Sales"],["المصروفات السابقة","Previous Expenses"],["صافي النتيجة السابقة","Previous Net Result"],["الشهر المفتوح للمراجعة","Month Open for Review"],["الفترة مفتوحة للمراجعة","Period Open for Review"],["تم التقفيل في","Closed on"],["وقت التقفيل","Closing Time"],["نفّذ التقفيل","Closed By"],["لا توجد سجلات مسجلة.","No records have been recorded."],["خطأ غير معروف","Unknown error"],["خطأ غير محدد","Unspecified error"],["صيانة مرتبطة","Linked Maintenance"],["أضيف إلى تكلفة تجهيز السيارة","Added to Vehicle Preparation Cost"],["لا يمكن حذف سيارة مرتبطة بمصاريف صيانة مسجلة. احذف أو انقل مصروفات الصيانة المرتبطة أولاً.","A vehicle with recorded maintenance expenses cannot be deleted. Remove or reassign its linked maintenance expenses first."]]);
+  LANGUAGE_PAIRS.push(...[["المتبقي المستحق","Outstanding Balance"],["مجمل ربح السيارات","Vehicle Gross Profit"],["إيرادات السنة","Annual Revenue"],["إجمالي المبيعات","Total Sales"],["يحتاج متابعة","Needs Attention"],["مصروفات ناقصة التاريخ أو التصنيف","Expenses Missing Date or Category"],["دفعات سحب الشركاء","Partner Withdrawal Payments"],["سحب من رأس المال","Capital Withdrawal"],["جهة غير محددة","Unspecified Entity"],["شريك غير محدد","Unspecified Partner"],["حركة مالية","Financial Transaction"],["صافي نتيجة الفترة","Period Net Result"],["وحفظ اللقطة المالية.","and save the financial snapshot."],["يجب كتابة سبب واضح لإعادة الفتح (4 أحرف على الأقل).","Enter a clear reason to reopen (at least 4 characters)."],["إجمالي التحصيل","Total Collections"],["قيد عكسي","Reversal Entry"],["نسخة تلقائية يومية ","Automatic Daily Backup "],["البيان والملاحظات","Description and Notes"],["انتهت جلسة الدخول. سجّل الدخول مرة أخرى.","Your session has expired. Please sign in again."],["تعذر إكمال عملية الإشعارات.","Unable to complete the notifications operation."],["المتصفح الحالي لا يدعم إشعارات الويب. افتح الموقع من Chrome على Android.","This browser does not support web notifications. Open the site in Chrome on Android."],["لم يتم السماح بالإشعارات من إعدادات المتصفح.","Notifications were not allowed in browser settings."],["تعذر تحميل مفتاح إشعارات الموقع.","Could not load the website notification key."],["تم تفعيل إشعارات الهاتف","Phone notifications enabled"],["هذا إشعار تجريبي للتأكد من وصول التنبيهات إلى هاتفك.","This is a test notification to confirm alerts reach your phone."],["تم تفعيل إشعارات الهاتف وإرسال إشعار تجريبي.","Phone notifications enabled and a test alert sent."],["تعذر تفعيل إشعارات الهاتف: ","Could not enable phone notifications: "],["تعذر تحديث الإشعار: ","Could not update notification: "],["خطأ أثناء تنفيذ عملية","An error occurred while performing an operation"],["جاري الاتصال...","Connecting..."],["هذا الحساب غير مضاف إلى صلاحيات النظام. تواصل مع مدير المعرض.","This account is not authorized for the system. Contact the showroom administrator."],["تعذر التحقق من صلاحية الحساب.","Could not verify account permissions."],["تعذر فتح النظام","Could not open the system"],["تعذر إنشاء سجل الحساب في قاعدة البيانات. لم يتم فتح بيانات غير محفوظة.","Could not create the account record in the database. Unsaved data was not opened."],["لا توجد صلاحية للحفظ.","You do not have permission to save."],["لم تؤكد قاعدة البيانات حفظ التعديلات؛ لم يتم اعتماد العملية.","The database did not confirm the changes were saved; the operation was not accepted."],["تم حفظ بيانات النظام، لكن تعذر تحديث دفتر الحركة تلقائيًا. راجع حالة الاتصال.","System data was saved, but the cashbook could not be updated automatically. Check the connection."],["تعذر الحفظ","Save Failed"],["لم يتم الحفظ: ","Not saved: "],["عكس حركة ","Reverse Transaction "],["تسوية محاسبية","Accounting Adjustment"],["صيانة ","Maintenance "],["تحصيل نقدي كامل حسب حالة السيارة كاش","Full cash collection based on the vehicle's Cash Sale status"],["تعديل أو حذف السجل المرتبط في النظام","Edit or delete the linked record in the system"],["حذف سجل ","Delete Record "],["تعديل سجل ","Edit Record "],["إضافة سجل ","Add Record "],["تم تحميل البيانات، لكن بعض الحركات القديمة تحتاج مزامنة. راجع دفتر الحركة.","Data loaded, but some older transactions need synchronization. Review the cashbook."],["إنشاء نسخة احتياطية تلقائية يومية","Create an automatic daily backup"],["سجل مالي بلا تاريخ؛ حدّد تاريخه قبل التقفيل حتى لا يُستبعد من الفترة.","A financial record has no date. Set its date before closing so it is not excluded from the period."],["طلب مصروف موظف معلق داخل الفترة؛ اعتمده أو ارفضه قبل التقفيل.","An employee expense request is pending in this period. Approve or reject it before closing."],["بدون سبب — عملية تقفيل","No reason — closing operation"],["الوارد النقدي ناقص المنصرف النقدي خلال الفترة.","Cash inflows minus cash outflows during the period."],["صافي الحركة البنكية في الفترة","Net Bank Movement During the Period"],["التحويلات البنكية الواردة ناقص التحويلات البنكية المنصرفة.","Incoming bank transfers minus outgoing bank transfers."],["إجمالي صافي حركة الدفتر","Total Net Ledger Movement"],["كل الوارد ناقص كل المنصرف من دفتر الحركة.","All inflows minus all outflows in the cashbook."],["مجمل الربح ناقص المصروفات، مضافًا إليه الأرباح ومطروحًا منه الخسائر.","Gross profit minus expenses, plus profits and minus losses."],["لا يمكن تقفيل الشهر الحالي أو شهر مستقبلي قبل انتهاء الفترة.","The current or a future month cannot be closed before the period ends."],["السنة مقفلة بالفعل؛ أعد فتح السنة أولاً قبل إجراء أي تغيير على شهرها.","The year is already closed. Reopen the year before making changes to one of its months."],["هذا الشهر مقفل بالفعل.","This month is already closed."],["سيتم حفظ لقطة نهائية لشهر ","A final snapshot will be saved for month "],["ومنـع إضافة أو تعديل أو حذف قيود هذا الشهر. هل تريد إتمام التقفيل؟","and adding, editing, or deleting entries for this month will be blocked. Complete the closing?"],["تعذر حفظ التقفيل في قاعدة البيانات.","Could not save the closing to the database."],["تقفيل ","Closing "],["تم تقفيل ","Closed "],["أعد فتح التقفيل السنوي أولاً.","Reopen the annual closing first."],["اكتب سبب إعادة فتح ","Enter the reason for reopening "],["سيتم إعادة فتح الشهر والسماح بتعديل سجلاته. هل أنت متأكد؟","The month will be reopened and its records can be edited. Are you sure?"],["تعذر حفظ إعادة الفتح.","Could not save the reopening."],["إعادة فتح ","Reopened "],["تمت إعادة فتح الشهر وتسجيل السبب في سجل المراجعة.","The month was reopened and the reason was recorded in the audit log."],["لا يمكن تقفيل السنة الحالية قبل انتهائها.","The current year cannot be closed before it ends."],["هذه السنة مقفلة بالفعل.","This year is already closed."],["يجب تقفيل الأشهر ذات الحركات أولاً: ","Close the months containing transactions first: "],["سيتم حفظ التقفيل السنوي لعام ","The annual closing for "],["وقفل كل سجلات السنة. هل تريد الاستمرار؟","and locking all records for the year. Continue?"],["تعذر حفظ التقفيل السنوي.","Could not save the annual closing."],["تقفيل السنة ","Annual Closing "],["تم تقفيل سنة ","Closed Year "],["اكتب سبب إعادة فتح سنة ","Enter the reason to reopen year "],["سيتم إعادة فتح السنة. الأشهر المقفلة ستظل مقفلة حتى تعيد فتح كل شهر على حدة. هل أنت متأكد؟","The year will be reopened. Closed months remain closed until each is reopened individually. Are you sure?"],["تعذر حفظ إعادة فتح السنة.","Could not save the annual reopening."],["إعادة فتح السنة ","Reopened Year "],["تمت إعادة فتح السنة. افتح الأشهر المطلوبة منفردة عند الحاجة.","The year was reopened. Reopen individual months separately when needed."],["مراجعة نتائج الشهر وحفظ لقطة مالية ثابتة قبل منع تعديل سجلاته.","Review the month's results and save a fixed financial snapshot before preventing edits to its records."],["بعد تكلفة السيارات المباعة","After Cost of Sold Vehicles"],["بعد الأرباح والخسائر الإضافية","After Additional Profits and Losses"],["سيارات وذمم الفترة","Vehicles and Debts for the Period"],["لقطة ثابتة","Fixed Snapshot"],["تقفيل قديم بلا لقطة","Older Closing Without Snapshot"],["معاينة قبل التقفيل","Preview Before Closing"],["الأشهر التي تحتوي على حركات ولم تُقفل: ","Months with transactions that are not closed: "],["يجب انتهاء السنة أولاً قبل اعتماد التقفيل السنوي.","The year must end before the annual closing can be approved."],["مقفل","Closed"],["مفتوح","Open"],["لا توجد حركات مالية مؤرخة في هذه السنة.","There are no dated financial transactions in this year."],["تجميع نتائج السنة من الأشهر المقفلة، ومراجعة صافي الربح والذمم ورأس المال.","Combine the year's results from closed months and review net profit, receivables, and capital."],["السنة مفتوحة للمراجعة","Year Open for Review"],["المبيعات ناقص التكلفة","Sales Minus Cost"],["مصروفات السنة","Annual Expenses"],["كل مصروفات التشغيل","All Operating Expenses"],["صافي نتيجة السنة","Annual Net Result"],["النتيجة بعد الربح والخسارة الإضافية","Result After Additional Profit and Loss"],["إجمالي المستحقات","Total Receivables"],["مبالغ باقية وذمم","Outstanding Amounts and Debts"],["تحصيل سيارة","Vehicle Collection"],["سداد شراء سيارة","Vehicle Purchase Payment"],["مصروف تشغيل","Operating Expense"],["سحب رأس مال","Capital Withdrawal"],["حركة أخرى","Other Transaction"],["الحركة المالية غير موجودة.","Financial transaction not found."],["إيصال استلام نقدية","Cash Receipt"],["إيصال صرف نقدية","Cash Disbursement Receipt"],["دفتر موحد للمقبوضات والمدفوعات مع الاحتفاظ بالأثر التاريخي.","Unified receipts and payments ledger with historical audit trail."],["الوارد خلال الشهر","Monthly Inflows"],["المنصرف خلال الشهر","Monthly Outflows"],["صافي الحركة","Net Movement"],["الوارد ناقص المنصرف","Inflows Minus Outflows"],["عدد الحركات","Number of Transactions"],["حركة خلال الشهر","Transactions During the Month"],["تمت المطابقة","Reconciled"],["بانتظار المطابقة","Awaiting Reconciliation"],["المبلغ الموجود فعلياً","Actual Amount Counted"],["تفاصيل فرق الخزينة أو الجرد","Treasury or Count Difference Details"],["لا توجد حركات مالية بعد.","No financial transactions yet."],["الفترة الحالية مقفلة ولا يمكن تسجيل مطابقة فيها.","The current period is closed and cannot be reconciled."],["أدخل النقدية الفعلية بعد الجرد.","Enter the actual cash amount after counting."],["القيم النقدية لا يمكن أن تكون سالبة.","Cash values cannot be negative."],["تعذر حفظ المطابقة: ","Could not save reconciliation: "],["مطابقة الخزينة ليوم ","Treasury Reconciliation for "],["تمت مطابقة الخزينة دون فرق.","Treasury reconciliation completed with no difference."],["تم حفظ المطابقة ويوجد فرق ","Reconciliation saved. Difference: "],["اختلاف في مطابقة الخزينة","Treasury Reconciliation Difference"],["تم تسجيل فرق ","Difference recorded: "],["بدون شاسيه","No Chassis Number"],["خسارة","Loss"],["حسب النسبة المتفق عليها","According to the Agreed Percentage"],["مخزون السيارات وربحية كل سيارة","Vehicle Inventory and Profitability"],["حالة السيارات المتاحة ومدة بقائها وربحية السيارات المباعة وتوزيع حصة الشريك.","Available vehicle status and age, sold vehicle profitability, and partner share distribution."],["سيارات في المخزون","Vehicles in Inventory"],["لم تسجل كمباعة","Not Marked as Sold"],["تكلفة المخزون","Inventory Cost"],["شراء وتجهيز","Purchase and Preparation"],["لا توجد سيارات في المخزون.","There are no vehicles in inventory."],["لا توجد سيارات مباعة.","There are no sold vehicles."],["تحصيل","Collection"],["كشف حساب العميل: ","Customer Account Statement: "],["مبيعات العميل والتحصيلات والذمم المرتبطة به.","Customer sales, collections, and related debts."],["قيمة السيارات المباعة","Value of Sold Vehicles"],["من دفتر التحصيلات","From the Collections Ledger"],["رصيد السيارات","Vehicle Balance"],["مستحق من العميل","Due from Customer"],["لا توجد سيارات مرتبطة بهذا العميل.","No vehicles are linked to this customer."],["عليه رصيد","Outstanding Balance"],["كشف مجمّع لكل عميل من مبيعات السيارات ودفعات التحصيل والذمم.","Consolidated statement per customer for vehicle sales, collections, and debts."],["عدد العملاء","Number of Customers"],["لديهم سيارات مسجلة","With Registered Vehicles"],["قيمة المبيعات","Sales Value"],["دفعات مسجلة","Recorded Payments"],["سيارات وذمم مستحقة","Vehicles and Debts Due"],["لا توجد أسماء عملاء مرتبطة بالسيارات.","No customer names are linked to vehicles."],["ذمة / قسط","Debt / Installment"],["قسط سيارة","Vehicle Installment"],["مستحق اليوم","Due Today"],["خلال ","Within "],["لا توجد استحقاقات في هذه المجموعة.","There are no due items in this group."],["الأقساط المتأخرة والقريبة، والأرصدة التي لا تحتوي على تاريخ استحقاق.","Overdue and upcoming installments, and balances without a due date."],["أقساط متأخرة","Overdue Installments"],["تجاوزت موعدها","Past Due"],["مستحقة خلال 7 أيام","Due Within 7 Days"],["تحتاج متابعة","Need Follow-up"],["مواعيد لاحقة","Later Due Dates"],["بعد أكثر من أسبوع","More Than a Week Away"],["أرصدة بلا موعد","Balances Without a Due Date"],["تحتاج جدولة","Need Scheduling"],["لا توجد أرصدة سيارات دون استحقاق.","No vehicle balances without due dates."],["إضافة","Add"],["استعادة","Restore"],["نسخ احتياطي","Backup"],["نظام","System"],["سجل المراجعة والتعديلات","Audit and Change Log"],["أثر زمني للإضافات والتعديلات والحذف والتقفيل والتسويات.","Timeline of additions, changes, deletions, closings, and adjustments."],["لا توجد أحداث مراجعة مسجلة بعد.","No audit events have been recorded yet."],["نسخة قبل الاستعادة ","Backup Before Restore "],["نسخة يدوية ","Manual Backup "],["تلقائية","Automatic"],["يدوية","Manual"],["قبل التطوير","Before Development"],["قبل الاستعادة","Before Restore"],["نسخة احتياطية","Backup"],["النسخ الاحتياطي والاستعادة","Backup and Restore"],["نسخ يومية تلقائية ونسخ يدوية محفوظة في قاعدة البيانات، مع نسخة قابلة للتنزيل.","Automatic daily and manual backups stored in the database, with a downloadable copy."],["في التخزين السحابي","In Cloud Storage"]]);
+
+  LANGUAGE_PAIRS.push(...[["سيارة","Vehicle"],["سيارات","Vehicles"],["مصروف","Expense"],["مصروفات التشغيل","Operating Expenses"],["يناير","January"],["فبراير","February"],["مارس","March"],["أبريل","April"],["مايو","May"],["يونيو","June"],["يوليو","July"],["أغسطس","August"],["سبتمبر","September"],["أكتوبر","October"],["نوفمبر","November"],["ديسمبر","December"],["حركة رأس المال","Capital Movement"],["الحالة","Status"],["التقديرية حسب التمويل","Estimated by Funding Share"],["سيارات مباعة","Sold Vehicles"],["بحالة بيع مسجلة","Marked as Sold"],["إجمالي المبيعات","Total Sales"],["الذمم المستحقة لنا","Receivables Due to Us"],["المتبقي المستحق","Outstanding Balance"],["مجمل ربح السيارات","Vehicle Gross Profit"],["مقارنة بالشهر السابق (","Compared with Previous Month ("],["مقارنة بالسنة السابقة (","Compared with Previous Year ("],["الحالي ناقص السابق","Current Minus Previous"],["اعرض شهراً محدداً لمعرفة حالة التقفيل.","Select a specific month to see its closing status."],["تقرير مشتريات ومبيعات ومصروفات ونتيجة الفترة من السجلات الحالية.","Purchase, sales, expense, and period-result report based on current records."],["السيارات المسجلة كمباعة بالفترة","Vehicles Marked as Sold in the Period"],["شراء وتجهيز السيارات المباعة","Purchase and Preparation of Sold Vehicles"],["مجمل ربح / خسارة السيارات","Vehicle Gross Profit / Loss"],["مجمل نتيجة السيارات ناقص المصروفات","Vehicle Gross Result Less Expenses"],["المبالغ المستحقة للمعرض أو المستحقة عليه.","Amounts due to or payable by the showroom."],["رأس المال وحركة الخزينة","Capital and Treasury Movements"],["الإيداعات والمسحوبات وحركة الشركاء.","Deposits, withdrawals, and partner movements."],["مجموع أسعار بيع السيارات المباعة","Total Sale Prices of Sold Vehicles"],["يتم احتساب السيارة عندما تكون حالتها كاش أو متبقي أو تقسيط أو مباع. لا تدخل السيارات التي ما زالت قيد البيع.","A vehicle is counted when its status is Cash Sale, Balance Due, Installments, or Sold. Vehicles still For Sale are excluded."],["سعر الشراء + مصاريف التجهيز للسيارات المباعة","Purchase Price + Preparation Costs for Sold Vehicles"],["تُحسب التكلفة على السيارات التي دخلت في المبيعات، بينما السيارات غير المباعة تظهر كقيمة مخزون منفصلة.","Cost is calculated for vehicles included in sales; unsold vehicles are shown separately as inventory."],["إيرادات البيع − تكلفة السيارات المباعة","Sales Revenue − Cost of Sold Vehicles"],["الرقم لا يخصم الإيجار والرواتب وبقية مصروفات التشغيل بعد.","Rent, salaries, and other operating expenses have not yet been deducted from this figure."],["مجموع مبالغ المصروفات المسجلة","Total Recorded Expense Amounts"],["يشمل البنود المسجلة في صفحة المصروفات فقط.","Includes items recorded on the Expenses page only."],["مجمل ربح السيارات − المصروفات + أرباح الأشخاص − خسائر الأشخاص","Vehicle Gross Profit − Expenses + Individual Profits − Individual Losses"],["هذه نتيجة تشغيلية مبسطة وفق الحقول الموجودة حاليًا، وليست قائمة تدفقات نقدية أو ميزانية عمومية.","This is a simplified operating result based on the current fields, not a cash-flow statement or balance sheet."],["نظرة واضحة على نشاط المعرض، مع شرح تفصيلي لكل نتيجة.","A clear view of showroom activity with a detailed explanation of each result."],["بعد مصروفات التشغيل والربح والخسارة","After Operating Expenses, Profits, and Losses"],["مجموع بنود المصروفات","Total Expense Categories"],["سيارات وذمم مستحقة للمعرض","Vehicle and Debt Receivables"],["لا توجد مصروفات مسجلة.","No expenses have been recorded."],["لا توجد سجلات مطابقة. استخدم زر إضافة لإنشاء سجل جديد.","No matching records. Use the Add button to create a new record."],["بدون اسم عميل","No Customer Name"],["ذمة مالية","Financial Debt"],["كل مبلغ لم يتم تحصيله بالكامل، مع اسم العميل أو السيارة.","Every amount not fully collected, with its customer or vehicle."],["للسجلات الظاهرة","For Displayed Records"],["متبقي السيارات","Vehicle Balances Remaining"],["أقساط ومبالغ بيع السيارات","Vehicle Installments and Sale Balances"],["من العملاء والجهات","From Customers and Entities"],["مستحق سيارة","Vehicle Receivable"],["ذمة مستحقة","Outstanding Debt"],["لا توجد مبالغ متبقية حالياً.","There are no outstanding balances currently."],["طلبات مصروفات المستلزمات المرسلة من حسابات الموظفين.","Supplies expense requests submitted from employee accounts."],["تحتاج مراجعة","Needs Review"],["إجمالي الطلبات","Total Requests"],["كل الطلبات الواردة","All Incoming Requests"],["طلب من حساب موظف","Request from Employee Account"],["تم التسجيل","Recorded"],["بانتظار الاعتماد","Awaiting Approval"],["تمت إضافته إلى المصروفات","Added to Expenses"],["لا توجد طلبات مصروفات.","There are no expense requests."],["موقوف","Suspended"],["موظف نشط","Active Employee"],["غير مضاف","Not Added"],["صلاحية محمية","Protected Permission"],["حساب بدون بريد","Account Without Email"],["متابعة حسابات الدخول ونشاط طلبات المصروفات. يمكن تفعيل أو إيقاف حساب الموظف؛ لا يمكن ترقية حساب إلى مدير من هذه الشاشة.","Monitor login accounts and expense-request activity. Employee access can be enabled or suspended; administrator privileges cannot be granted from this screen."],["حسابات مسجلة","Registered Accounts"],["صلاحية موظف","Employee Access"],["لا يمكنها دخول النظام","Cannot Access the System"],["مساهمة / إيداع","Contribution / Deposit"],["أرباح","Profits"],["خسائر","Losses"],["حركة شريك","Partner Movement"],["شراكة سيارة","Vehicle Partnership"],["رأس مال","Capital"],["لا توجد حركات شركاء مسجلة.","No partner movements have been recorded."],["متابعة مساهمات كل شريك وأرصدته ودفعات السحب المسجلة.","Track each partner's contributions, balances, and recorded withdrawals."],["إجمالي المساهمات","Total Contributions"],["إيداعات ومساهمات","Deposits and Contributions"],["مبالغ صُرفت للشركاء","Amounts Paid to Partners"],["الأرباح المسجلة","Recorded Profits"],["أرباح مرتبطة بالحركات","Profits Linked to Movements"],["الخسائر المسجلة","Recorded Losses"],["خسائر مرتبطة بالحركات","Losses Linked to Movements"],["كل الشهور","All Months"],["المبيعات السابقة","Previous Sales"],["المصروفات السابقة","Previous Expenses"],["صافي النتيجة السابقة","Previous Net Result"],["حركة مرحّلة من سجلات سابقة.","Movement migrated from previous records."],["تم إصدار هذا الإيصال من دفتر الحركة المالي.","This receipt was issued from the financial transaction ledger."],["مخزون السيارات وربحية كل سيارة","Vehicle Inventory and Profitability"],["حالة السيارات المتاحة ومدة بقائها وربحية السيارات المباعة وتوزيع حصة الشريك.","Available vehicle status and age, sold vehicle profitability, and partner-share distribution."],["سيارات في المخزون","Vehicles in Inventory"],["لم تسجل كمباعة","Not Marked as Sold"],["تكلفة المخزون","Inventory Cost"],["شراء وتجهيز","Purchase and Preparation"],["لا توجد سيارات في المخزون.","There are no vehicles in inventory."],["لا توجد سيارات مباعة.","There are no sold vehicles."],["كشف حساب العميل: ","Customer Account Statement: "],["مبيعات العميل والتحصيلات والذمم المرتبطة به.","Customer sales, collections, and related debts."],["قيمة السيارات المباعة","Value of Sold Vehicles"],["من دفتر التحصيلات","From the Collections Ledger"],["رصيد السيارات","Vehicle Balance"],["مستحق من العميل","Due from Customer"],["لا توجد سيارات مرتبطة بهذا العميل.","No vehicles are linked to this customer."],["عليه رصيد","Outstanding Balance"],["كشف مجمّع لكل عميل من مبيعات السيارات ودفعات التحصيل والذمم.","Consolidated statement per customer for vehicle sales, collection payments, and debts."],["عدد العملاء","Number of Customers"],["لديهم سيارات مسجلة","With Registered Vehicles"],["قيمة المبيعات","Sales Value"],["دفعات مسجلة","Recorded Payments"],["سيارات وذمم مستحقة","Vehicles and Debts Due"],["لا توجد أسماء عملاء مرتبطة بالسيارات.","No customer names are linked to vehicles."],["ذمة / قسط","Debt / Installment"],["قسط سيارة","Vehicle Installment"],["مستحق اليوم","Due Today"],["لا توجد استحقاقات في هذه المجموعة.","There are no due items in this group."],["الأقساط المتأخرة والقريبة، والأرصدة التي لا تحتوي على تاريخ استحقاق.","Overdue and upcoming installments, and balances without a due date."],["أقساط متأخرة","Overdue Installments"],["تجاوزت موعدها","Past Due"],["مستحقة خلال 7 أيام","Due Within 7 Days"],["مواعيد لاحقة","Upcoming Dates"],["بعد أكثر من أسبوع","More Than One Week Away"],["أرصدة بلا موعد","Balances Without a Due Date"],["تحتاج جدولة","Need Scheduling"],["لا توجد أرصدة سيارات دون استحقاق.","There are no vehicle balances without due dates."],["سجل المراجعة والتعديلات","Audit and Change Log"],["أثر زمني للإضافات والتعديلات والحذف والتقفيل والتسويات.","Timeline of additions, changes, deletions, closings, and adjustments."],["لا توجد أحداث مراجعة مسجلة بعد.","No audit events have been recorded yet."],["نسخة قبل الاستعادة ","Backup Before Restore "],["نسخة يدوية ","Manual Backup "],["تلقائية","Automatic"],["يدوية","Manual"],["قبل التطوير","Before Development"],["قبل الاستعادة","Before Restore"],["النسخ الاحتياطي والاستعادة","Backup and Restore"],["نسخ يومية تلقائية ونسخ يدوية محفوظة في قاعدة البيانات، مع نسخة قابلة للتنزيل.","Automatic daily and manual backups stored in the database, with a downloadable copy."],["في التخزين السحابي","In Cloud Storage"],["تُنشأ عند أول دخول يومي","Created on the First Daily Login"],["بقرار المدير","At the Administrator's Discretion"],["لا توجد نسخ احتياطية بعد.","There are no backups yet."],["صيغة النسخة غير صالحة أو لا تحتوي على بيانات التطبيق الأساسية.","The backup format is invalid or does not contain the application's required data."],["لا توجد بيانات مسجلة حتى الآن.","No records have been added yet."],["لا توجد بيانات مسجلة.","No data has been recorded."],["أولوية عاجلة","Urgent Priority"],["مستقر","Stable"],["اقتراح إداري","Management Recommendation"],["ممتاز","Excellent"],["يتطلب تدخلًا","Requires Action"],["مطابقات الخزينة غير المكتملة","Incomplete Treasury Reconciliations"],["يوم نقدي سابق دون مطابقة","Previous Cash Day Without Reconciliation"],["فروق المطابقة المسجلة","Recorded Reconciliation Differences"],["مطابقة بها فرق يحتاج مراجعة","Reconciliation with Difference to Review"],["طلب بانتظار قرار الإدارة","Request Awaiting Management Decision"],["طلبات متأخرة عن يومين","Requests Pending for More Than Two Days"],["طلب يحتاج حسمًا أو متابعة","Request Requires a Decision or Follow-up"],["سجل يحتاج استكمال البيانات","Record Needs Additional Details"],["مساعد IS Motors","IS Motors Assistant"],["اكتب سؤالك عن الأداء المالي أو اطلب اقتراحًا إداريًا...","Ask about financial performance or request a management suggestion..."],["الرسالة طويلة جدًا.","The message is too long."],["تعذر الاتصال بالمساعد الذكي.","Unable to connect to the AI assistant."],["لم يصل رد من المساعد.","No response was received from the assistant."],["تعذر إتمام الطلب: ","Could not complete the request: "],["مركز متابعة إداري يجمع الرقابة المالية ومؤشرات الأداء وسجل المراجعة.","Management center combining financial controls, performance indicators, and the audit log."],["صحة الإدارة","Management Health"],["توصيات عاجلة","Urgent Recommendations"],["تحتاج مراجعة فورية","Require Immediate Review"],["بنود للمتابعة","Items to Follow Up"],["تحتاج إجراء إداري","Require Administrative Action"],["أحداث سجل المراجعة","Audit Log Events"],["آخر الأحداث المحمّلة","Latest Loaded Events"],["محسوب من السجلات الحالية","Calculated from Current Records"],["سيارة بدون اسم","Vehicle Without a Name"],["مصروفات التشغيل","Operating Expenses"],["لا توجد إشعارات حتى الآن.","There are no notifications yet."]]);
+  LANGUAGE_PAIRS.push(...[["أنت","You"],["إيصال استلام نقدية","Cash Receipt"],["إيصال صرف نقدية","Cash Disbursement Receipt"],["رقم الإيصال: ","Receipt Number: "],["التاريخ: ","Date: "],["طريقة الدفع: ","Payment Method: "],["اسم الطرف","Party Name"],["نوع الحركة","Transaction Type"],["السيارة المرتبطة","Linked Vehicle"],["المرجع","Reference"],["البيان","Description"],["المستلم / المسلم","Received By / Handed Over"],["الاسم والتوقيع","Name and Signature"],["اعتماد الإدارة","Management Approval"],["التوقيع والختم","Signature and Stamp"],["IS Motors · إيصال صادر من النظام الإلكتروني","IS Motors · Receipt Issued by the Electronic System"],["تسجيل مصروف مستلزمات","Submit Supplies Expense"],["هذا الحساب مخصص لإرسال طلبات المصروفات العادية فقط. لا يتيح مشاهدة بيانات أو حسابات المعرض.","This account is only for submitting regular expense requests. It cannot view showroom data or accounts."],["بيان المصروف","Expense Description"],["المبلغ بالجنيه","Amount in EGP"],["التاريخ","Date"],["إرسال الطلب للإدارة","Submit Request to Management"],["يرجى إدخال بيان صحيح ومبلغ أكبر من صفر.","Enter a valid description and an amount greater than zero."],["تعذر تسجيل الدخول. راجع البريد وكلمة المرور.","Unable to sign in. Check your email and password."],["تم الوصول إلى حد الطلبات المؤقت. حاول بعد دقيقة.","The temporary request limit has been reached. Try again in one minute."],["اكتب سؤالاً لا يتجاوز 3000 حرف.","Enter a question of no more than 3,000 characters."],["المساعد جاهز، لكن يلزم إضافة GEMINI_API_KEY في متغيرات Vercel السرية.","The assistant is ready, but GEMINI_API_KEY must be added to Vercel's secret environment variables."],["المساعد الذكي متاح لمدير النظام فقط.","The AI assistant is available to the system administrator only."],["وصلت خدمة Gemini إلى حد الاستخدام أو الرصيد المتاح. تحقق من الحصة والفوترة في Google AI Studio.","Gemini has reached its usage limit or available credit. Check quota and billing in Google AI Studio."],["مفتاح Gemini غير صالح أو لا يملك صلاحية استخدام Gemini API. تحقق من المفتاح وتفعيل Gemini API وقيود المفتاح.","The Gemini key is invalid or lacks permission to use the Gemini API. Check the key, API activation, and key restrictions."],["نموذج Gemini المحدد غير متاح لهذا المفتاح أو لهذا الإصدار من API.","The selected Gemini model is unavailable for this key or API version."],["رفضت Gemini صيغة الطلب. راجع إعدادات النموذج أو محتوى الطلب.","Gemini rejected the request format. Review model settings or request content."],["خدمة Gemini تواجه مشكلة مؤقتة. حاول مرة أخرى لاحقًا.","Gemini is experiencing a temporary issue. Try again later."],["لم تُرجع خدمة الذكاء الاصطناعي إجابة نصية.","The AI service did not return a text response."],["حدث خطأ داخلي أثناء معالجة طلب المساعد.","An internal error occurred while processing the assistant request."],["وصل طلب المصروف إلى الإدارة.","Your expense request has been sent to management."],["تعذر إرسال الطلب: ","Unable to submit the request: "],["تحقق من الاتصال.","Check your connection."],["هذا الحساب مخصص لإرسال طلبات المصروفات العادية فقط.","This account is limited to submitting regular expense requests."],["اتصال مشفّر بقاعدة البيانات السحابية","Encrypted connection to the cloud database"],["سجّل الدخول للوصول إلى لوحة المعرض حسب صلاحية حسابك.","Sign in to access the showroom dashboard according to your account permissions."]]);
+  function translateText(value){
+    let output=String(value==null?"":value);
+    const map=uiLanguage==="en"?LANGUAGE_PAIRS:LANGUAGE_PAIRS.map(pair=>[pair[1],pair[0]]);
+    map.slice().sort((a,b)=>b[0].length-a[0].length).forEach(pair=>{
+      if(!pair[0]||pair[0]===pair[1])return;
+      const singleWord=!pair[0].includes(" ")&&pair[0].length<=8;
+      if(singleWord){if(output.trim()===pair[0])output=output.replace(pair[0],pair[1]);}
+      else output=output.split(pair[0]).join(pair[1]);
+    });
+    return output;
+  }
+  function translateDOM(root){
+    const target=root||document,walker=document.createTreeWalker(target,NodeFilter.SHOW_TEXT),nodes=[];let node;
+    while((node=walker.nextNode())){if(node.parentElement&&node.parentElement.closest("script,style,[data-no-translate]"))continue;nodes.push(node);}
+    nodes.forEach(textNode=>{textNode.nodeValue=translateText(textNode.nodeValue);});
+    const elements=target.nodeType===1?[target].concat(Array.from(target.querySelectorAll("*"))):Array.from(target.querySelectorAll("*"));
+    elements.forEach(element=>{if(element.matches(".language-select,[data-no-translate]"))return;["placeholder","title","aria-label","aria-description"].forEach(attr=>{if(element.hasAttribute(attr))element.setAttribute(attr,translateText(element.getAttribute(attr)));});});
+  }
+  function setLanguage(language){
+    uiLanguage=language==="en"?"en":"ar";
+    try{window.localStorage.setItem("is-motors-language",uiLanguage);}catch(_){}
+    document.documentElement.lang=uiLanguage;document.documentElement.dir=uiLanguage==="en"?"ltr":"rtl";
+    document.querySelectorAll(".language-select").forEach(select=>{select.value=uiLanguage;});
+    if(role==="admin")render();else translateDOM(document);
+  }
+  document.documentElement.lang=uiLanguage;document.documentElement.dir=uiLanguage==="en"?"ltr":"rtl";translateDOM(document);
+  document.querySelectorAll(".language-select").forEach(select=>{select.value=uiLanguage;});
+
   const emptyState = () => ({
     cars: [], expenses: [], debts: [], capital: [], partnerMovements: [],
     closings: {annual:{}, halves:{}, months:{}, snapshots:[]},
@@ -75,6 +112,7 @@
       fields:[
         {key:"date",label:"التاريخ",type:"date"},
         {key:"category",label:"بند المصروف",type:"select",options:["إيجار","رواتب وأجور","كهرباء ومرافق","مستلزمات","صيانة","تسويق وإعلانات","انتقالات","رسوم حكومية","أخرى"]},
+        {key:"carId",label:"السيارة المرتبطة بالصيانة",type:"select",options:[],showWhen:{field:"category",value:"صيانة"}},
         {key:"description",label:"البيان",required:true},
         {key:"amount",label:"المبلغ",type:"number",required:true},
         {key:"paymentMethod",label:"طريقة الدفع",type:"select",options:["نقداً","تحويل بنكي","شيك","بطاقة","أخرى"]},
@@ -190,6 +228,7 @@
     ).join(""):'<p class="muted notification-empty">لا توجد إشعارات حتى الآن.</p>';
     panel.innerHTML='<div class="notification-panel-head"><strong>الإشعارات</strong><button class="btn btn-ghost btn-small" data-notification-close>إغلاق</button></div><div class="notification-panel-actions"><button class="btn btn-primary btn-small" data-notification-enable>تفعيل إشعارات الهاتف</button><span class="muted">تصل حتى عند إغلاق الموقع بعد السماح بها</span></div><div class="notification-list">'+cards+'</div>';
     panel.hidden=!notificationPanelOpen;
+    translateDOM(panel);
   }
   async function initAdminNotifications() {
     if(role!=="admin"||!session)return;
@@ -258,7 +297,7 @@
 
   function toast(message, type) {
     const box = $("toast");
-    box.textContent = message;
+    box.textContent = translateText(message);
     box.className = "toast show " + (type || "");
     if(type==="error" && role==="admin" && session && typeof reportSystemIssue==="function") {
       const safeMessage=String(message||"خطأ غير محدد").replace(/https?:\/\/\S+/g,"[رابط مخفي]").slice(0,350);
@@ -422,7 +461,7 @@
       existing.direction===desired.direction &&
       existing.category===desired.category &&
       existing.payment_method===desired.payment_method &&
-      Math.abs(amount(existing.amount)-amount(desired.amount))<0.0001;
+      Math.abs(amount(existing.amount)-amount(desired.amount))<0.0001 && String(existing.car_id||"")===String(desired.car_id||"");
   }
 
   async function insertFinancialTransaction(payload) {
@@ -452,10 +491,12 @@
     const output=[];
     (sourceState.expenses||[]).forEach(item=>{
       if (!item || !item.id || amount(item.amount)<=0 || !/^\d{4}-\d{2}-\d{2}$/.test(String(item.date||""))) return;
+      const vehiclePrep=isVehiclePrepExpense(item);
+      const linkedCar=vehiclePrep?(sourceState.cars||[]).find(car=>String(car.id)===String(item.carId)):null;
       output.push({
-        user_id:session.user.id,transaction_date:item.date,direction:"outflow",category:"expense",
-        payment_method:dbPaymentMethod(item.paymentMethod),amount:amount(item.amount),
-        person_name:item.recipient||"",description:item.description||item.category||"مصروف",
+        user_id:session.user.id,transaction_date:item.date,direction:"outflow",category:vehiclePrep?"car_prep":"expense",
+        payment_method:dbPaymentMethod(item.paymentMethod),amount:amount(item.amount),car_id:linkedCar?String(linkedCar.id):null,
+        person_name:item.recipient||"",description:vehiclePrep?("صيانة "+String(linkedCar.model||"سيارة")+" — "+String(item.description||"")):(item.description||item.category||"مصروف"),
         reference:item.receiptNo||"",source_type:"expense",source_id:String(item.id),is_legacy:false
       });
     });
@@ -690,6 +731,18 @@
   }
 
   function amount(value) { return num(value); }
+  function isVehiclePrepExpense(item){return Boolean(item&&item.category==="صيانة"&&item.carId&&amount(item.carPrepApplied)>0&&(state.cars||[]).some(car=>String(car.id)===String(item.carId)));}
+  function operatingExpenseTotal(items){return (items||[]).reduce((sum,item)=>sum+(isVehiclePrepExpense(item)?0:amount(item.amount)),0);}
+  function applyMaintenanceExpenseCost(previousExpense,nextExpense){
+    if(previousExpense&&isVehiclePrepExpense(previousExpense)){const oldCar=(state.cars||[]).find(car=>String(car.id)===String(previousExpense.carId));if(oldCar)oldCar.prepCost=Math.max(0,amount(oldCar.prepCost)-amount(previousExpense.carPrepApplied));}
+    if(nextExpense&&nextExpense.category==="صيانة"){
+      const car=(state.cars||[]).find(item=>String(item.id)===String(nextExpense.carId||""));
+      const samePreviouslyLinked=previousExpense&&String(previousExpense.carId||"")===String(nextExpense.carId||"");
+      if(!car||(!samePreviouslyLinked&&isSoldCar(car)))throw new Error("اختر سيارة متاحة من المخزون لربط مصروف الصيانة بها.");
+      if(amount(nextExpense.amount)<=0)throw new Error("يجب أن يكون مبلغ الصيانة أكبر من صفر.");
+      nextExpense.carPrepApplied=amount(nextExpense.amount);car.prepCost=amount(car.prepCost)+nextExpense.carPrepApplied;
+    }else if(nextExpense){nextExpense.carPrepApplied=0;nextExpense.carId="";}
+  }
   function carPaid(car) {
     if (financialLedgerLoaded && car && car.id) {
       return Math.max(0,financialTransactions.filter(tx=>
@@ -721,7 +774,7 @@
     const carRemainingTotal = cars.reduce((sum,c) => sum + carRemaining(c), 0);
     const receivableDebts = (state.debts || []).filter(d => String(d.nature || "").includes("لنا")).reduce((sum,d)=>sum+debtRemaining(d),0);
     const payableDebts = (state.debts || []).filter(d => String(d.nature || "").includes("علينا")).reduce((sum,d)=>sum+debtRemaining(d),0);
-    const expenses = (state.expenses || []).reduce((sum,e)=>sum+amount(e.amount),0);
+    const expenses = operatingExpenseTotal(state.expenses || []);
     const capitalIn = (state.capital || []).reduce((sum,c)=>sum+amount(c.deposited),0);
     const capitalOut = (state.capital || []).reduce((sum,c)=>sum+amount(c.withdrawn),0);
     const profitFromPeople = (state.capital || []).filter(c=>c.profitLossType==="ربح من شخص").reduce((sum,c)=>sum+amount(c.profitLossAmount),0);
@@ -818,10 +871,12 @@
     const shareInfo = amount(c.partnerContribution) > 0
       ? '<div class="data-cell"><span>الشريك المساهم</span><strong>' + esc(c.partnerName || "—") + '</strong></div><div class="data-cell"><span>مبلغ الشراكة</span><strong class="positive">' + money(c.partnerContribution) + '</strong></div>'
       : '';
-    return '<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">' + esc(c.model || "سيارة بدون اسم") + '</div><div class="data-card-sub">' + dateText(c.date) + ' · ' + esc(c.customer || "بدون عميل") + '</div></div>' + badge(c.status || "قيد البيع", c.status==="كاش"||c.status==="مباع"?"ok":(remaining>0?"warn":"gold")) + '</div><div class="data-card-grid"><div class="data-cell"><span>تكلفة الشراء والتجهيز</span><strong>' + money(cost) + '</strong></div><div class="data-cell"><span>سعر البيع</span><strong>' + money(c.salePrice) + '</strong></div><div class="data-cell"><span>المدفوع</span><strong class="positive">' + money(carPaid(c)) + '</strong></div><div class="data-cell"><span>المتبقي</span><strong class="' + (remaining>0?"negative":"positive") + '">' + money(remaining) + '</strong></div>' + shareInfo + '</div><div class="card-actions"><button class="btn btn-outline btn-small" data-action="edit" data-collection="cars" data-id="' + esc(c.id) + '">تعديل</button><button class="btn btn-danger btn-small" data-action="delete" data-collection="cars" data-id="' + esc(c.id) + '">حذف</button></div></article>';
+    return '<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">' + esc(c.model || "سيارة بدون اسم") + '</div><div class="data-card-sub">' + dateText(c.date) + ' · ' + esc(c.customer || "بدون عميل") + '</div></div>' + badge(c.status || "قيد البيع", c.status==="كاش"||c.status==="مباع"?"ok":(remaining>0?"warn":"gold")) + '</div><div class="data-card-grid"><div class="data-cell"><span>تكلفة الشراء والتجهيز</span><strong>' + money(cost) + '</strong></div><div class="data-cell"><span>تكلفة التجهيز</span><strong>' + money(c.prepCost) + '</strong></div><div class="data-cell"><span>سعر البيع</span><strong>' + money(c.salePrice) + '</strong></div><div class="data-cell"><span>المدفوع</span><strong class="positive">' + money(carPaid(c)) + '</strong></div><div class="data-cell"><span>المتبقي</span><strong class="' + (remaining>0?"negative":"positive") + '">' + money(remaining) + '</strong></div>' + shareInfo + '</div><div class="card-actions"><button class="btn btn-outline btn-small" data-action="edit" data-collection="cars" data-id="' + esc(c.id) + '">تعديل</button><button class="btn btn-danger btn-small" data-action="delete" data-collection="cars" data-id="' + esc(c.id) + '">حذف</button></div></article>';
   }
   function expenseCard(e) {
-    return '<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">' + esc(e.description || e.category || "مصروف") + '</div><div class="data-card-sub">' + esc(e.category || "عام") + ' · ' + dateText(e.date) + '</div></div>' + badge(e.paymentMethod || "غير محدد","gold") + '</div><div class="data-card-grid"><div class="data-cell"><span>المبلغ</span><strong class="negative">' + money(e.amount) + '</strong></div><div class="data-cell"><span>المستلم / المورد</span><strong>' + esc(e.recipient || "—") + '</strong></div><div class="data-cell"><span>طريقة الدفع</span><strong>' + esc(e.paymentMethod || "—") + '</strong></div><div class="data-cell"><span>ملاحظات</span><strong>' + esc(e.notes || "—") + '</strong></div></div><div class="card-actions"><button class="btn btn-outline btn-small" data-action="edit" data-collection="expenses" data-id="' + esc(e.id) + '">تعديل</button><button class="btn btn-danger btn-small" data-action="delete" data-collection="expenses" data-id="' + esc(e.id) + '">حذف</button></div></article>';
+    const car=(state.cars||[]).find(item=>String(item.id)===String(e.carId||""));
+    const linkedPrep=isVehiclePrepExpense(e);
+    return '<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">' + esc(e.description || e.category || "مصروف") + '</div><div class="data-card-sub">' + esc(e.category || "عام") + ' · ' + dateText(e.date) + '</div></div>' + badge(e.paymentMethod || "غير محدد","gold") + '</div><div class="data-card-grid"><div class="data-cell"><span>المبلغ</span><strong class="negative">' + money(e.amount) + '</strong></div><div class="data-cell"><span>المستلم / المورد</span><strong>' + esc(e.recipient || "—") + '</strong></div><div class="data-cell"><span>طريقة الدفع</span><strong>' + esc(e.paymentMethod || "—") + '</strong></div>' + (car?'<div class="data-cell"><span>السيارة المرتبطة</span><strong>'+esc(car.model||"—")+'</strong></div>':'') + (linkedPrep?'<div class="data-cell"><span>أضيف إلى تكلفة تجهيز السيارة</span><strong class="positive">'+money(e.carPrepApplied)+'</strong></div>':'') + '<div class="data-cell"><span>ملاحظات</span><strong>' + esc(e.notes || "—") + '</strong></div></div><div class="card-actions"><button class="btn btn-outline btn-small" data-action="edit" data-collection="expenses" data-id="' + esc(e.id) + '">تعديل</button><button class="btn btn-danger btn-small" data-action="delete" data-collection="expenses" data-id="' + esc(e.id) + '">حذف</button></div></article>';
   }
   function debtCard(d) {
     const rem = debtRemaining(d);
@@ -911,7 +966,7 @@
     const sales = sold.reduce((sum,car)=>sum+amount(car.salePrice),0);
     const soldCost = sold.reduce((sum,car)=>sum+amount(car.purchasePrice)+amount(car.prepCost),0);
     const allPurchaseCost = rows.cars.reduce((sum,car)=>sum+amount(car.purchasePrice)+amount(car.prepCost),0);
-    const operatingExpenses = rows.expenses.reduce((sum,expense)=>sum+amount(expense.amount),0);
+    const operatingExpenses = operatingExpenseTotal(rows.expenses);
     const profitFromPeople = rows.capital.filter(entry=>entry.profitLossType==="ربح من شخص").reduce((sum,entry)=>sum+amount(entry.profitLossAmount),0);
     const lossToPeople = rows.capital.filter(entry=>entry.profitLossType==="خسارة لشخص").reduce((sum,entry)=>sum+amount(entry.profitLossAmount),0);
     const grossProfit = sales-soldCost;
@@ -1297,6 +1352,7 @@
     const title=tx.direction==="inflow"?"إيصال استلام نقدية":"إيصال صرف نقدية";
     const host=$("printReceipt");
     host.innerHTML='<div class="receipt-sheet"><div class="receipt-brand"><div class="brand-mark">IS</div><div><strong>IS MOTORS</strong><span>نظام الإدارة والحسابات</span></div></div><div class="receipt-heading"><h1>'+title+'</h1><p>رقم الإيصال: '+esc(receiptNo)+'</p></div><div class="receipt-meta"><span>التاريخ: <b>'+dateText(tx.transaction_date)+'</b></span><span>طريقة الدفع: <b>'+esc(paymentMethodLabel(tx.payment_method))+'</b></span></div><div class="receipt-amount"><small>المبلغ</small><strong>'+money(tx.amount)+'</strong></div><div class="receipt-details"><div><span>اسم الطرف</span><strong>'+esc(tx.person_name||"—")+'</strong></div><div><span>نوع الحركة</span><strong>'+esc(transactionCategoryLabel(tx.category))+'</strong></div><div><span>السيارة المرتبطة</span><strong>'+esc(car?car.model:"—")+'</strong></div><div><span>المرجع</span><strong>'+esc(tx.reference||"—")+'</strong></div><div class="receipt-full"><span>البيان</span><strong>'+esc(tx.description||"—")+'</strong></div></div><div class="receipt-note">'+(tx.is_legacy?"حركة مرحّلة من سجلات سابقة.":"تم إصدار هذا الإيصال من دفتر الحركة المالي.")+'</div><div class="receipt-signatures"><div>المستلم / المسلم<br><small>الاسم والتوقيع</small></div><div>اعتماد الإدارة<br><small>التوقيع والختم</small></div></div><footer>IS Motors · إيصال صادر من النظام الإلكتروني</footer></div>';
+    translateDOM(host);
     document.body.classList.add("print-receipt-mode");
     const cleanup=()=>{document.body.classList.remove("print-receipt-mode");host.innerHTML="";};
     window.addEventListener("afterprint",cleanup,{once:true});
@@ -1574,7 +1630,7 @@
 
   function renderAdminHealthPanel() {
     const h=adminHealthSnapshot(), expensesByCategory=new Map();
-    (state.expenses||[]).forEach(item=>{const key=String(item.category||"غير مصنف");expensesByCategory.set(key,(expensesByCategory.get(key)||0)+amount(item.amount));});
+    (state.expenses||[]).filter(item=>!isVehiclePrepExpense(item)).forEach(item=>{const key=String(item.category||"غير مصنف");expensesByCategory.set(key,(expensesByCategory.get(key)||0)+amount(item.amount));});
     const categories=Array.from(expensesByCategory.entries()).sort((a,b)=>b[1]-a[1]).slice(0,6);
     const max=categories.reduce((m,item)=>Math.max(m,item[1]),0)||1;
     const checks=[["مطابقات الخزينة غير المكتملة",h.cashDates,"يوم نقدي سابق دون مطابقة"],["فروق المطابقة المسجلة",h.differences,"مطابقة بها فرق يحتاج مراجعة"],["طلبات الموظفين المعلقة",h.pending,"طلب بانتظار قرار الإدارة"],["طلبات متأخرة عن يومين",h.stale,"طلب يحتاج حسمًا أو متابعة"],["مصروفات ناقصة التاريخ أو التصنيف",h.missingExpenseDetails,"سجل يحتاج استكمال البيانات"]];
@@ -1602,7 +1658,7 @@
   function renderAiConversation() {
     const host=$("aiChatHistory");
     if(!host)return;
-    host.innerHTML=aiConversation.length?aiConversation.map(item=>'<div class="ai-message '+(item.role==="user"?"user":"assistant")+'"><strong>'+(item.role==="user"?"أنت":"مساعد IS Motors")+'</strong><p>'+esc(item.text).replace(/\n/g,"<br>")+'</p></div>').join(""):'<div class="ai-empty">اسأل عن صافي نتيجة النشاط أو المصروفات أو السيولة أو الملاحظات الرقابية. سيستخدم المساعد ملخصات مالية مجمعة فقط.</div>';
+    host.innerHTML=aiConversation.length?aiConversation.map(item=>'<div class="ai-message '+(item.role==="user"?"user":"assistant")+'"><strong>'+(item.role==="user"?"أنت":"مساعد IS Motors")+'</strong><p data-no-translate>'+esc(item.text).replace(/\n/g,"<br>")+'</p></div>').join(""):'<div class="ai-empty">اسأل عن صافي نتيجة النشاط أو المصروفات أو السيولة أو الملاحظات الرقابية. سيستخدم المساعد ملخصات مالية مجمعة فقط.</div>';
     host.scrollTop=host.scrollHeight;
   }
 
@@ -1619,16 +1675,16 @@
     aiConversation.push({role:"user",text:message});
     input.value="";
     renderAiConversation();
-    button.disabled=true;button.textContent="جارٍ التحليل...";
+    button.disabled=true;button.textContent=translateText("جارٍ التحليل...");
     try{
-      const response=await fetch("/api/assistant",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(session&&session.access_token||"")},body:JSON.stringify({message,context:aiContextSummary()})});
+      const response=await fetch("/api/assistant",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(session&&session.access_token||"")},body:JSON.stringify({message,context:aiContextSummary(),language:uiLanguage})});
       const payload=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(payload.error||"تعذر الاتصال بالمساعد الذكي.");
       aiConversation.push({role:"assistant",text:String(payload.answer||"لم يصل رد من المساعد.")});
     }catch(error){
-      aiConversation.push({role:"assistant",text:"تعذر إتمام الطلب: "+(error.message||"خطأ غير معروف")});
+      aiConversation.push({role:"assistant",text:translateText("تعذر إتمام الطلب: ")+(translateText(error.message||"خطأ غير معروف"))});
     }finally{
-      button.disabled=false;button.textContent="إرسال";renderAiConversation();
+      button.disabled=false;button.textContent=translateText("إرسال");renderAiConversation();
     }
   }
 
@@ -1821,7 +1877,7 @@
     const revenue = sold.reduce((s,c)=>s+amount(c.salePrice),0);
     const cost = sold.reduce((s,c)=>s+amount(c.purchasePrice)+amount(c.prepCost),0);
     const gross = revenue-cost;
-    const expenseTotal = expenses.reduce((s,e)=>s+amount(e.amount),0);
+    const expenseTotal = operatingExpenseTotal(expenses);
     const carRemainingTotal = cars.reduce((s,c)=>s+carRemaining(c),0);
     const debtRemainingTotal = debts.filter(d=>String(d.nature||"").includes("لنا")).reduce((s,d)=>s+debtRemaining(d),0);
     const capitalIn = capital.reduce((s,c)=>s+amount(c.deposited),0);
@@ -1837,7 +1893,7 @@
       const prevSold=prevCars.filter(isSoldCar);
       const prevRevenue=prevSold.reduce((sum,c)=>sum+amount(c.salePrice),0);
       const prevCost=prevSold.reduce((sum,c)=>sum+amount(c.purchasePrice)+amount(c.prepCost),0);
-      const prevExpenses=state.expenses.filter(e=>String(e.date||"").startsWith(prevKey)).reduce((sum,e)=>sum+amount(e.amount),0);
+      const prevExpenses=operatingExpenseTotal(state.expenses.filter(e=>String(e.date||"").startsWith(prevKey)));
       const prevCapital=state.capital.filter(c=>String(c.date||"").startsWith(prevKey));
       const prevNet=prevRevenue-prevCost-prevExpenses+prevCapital.filter(c=>c.profitLossType==="ربح من شخص").reduce((sum,c)=>sum+amount(c.profitLossAmount),0)-prevCapital.filter(c=>c.profitLossType==="خسارة لشخص").reduce((sum,c)=>sum+amount(c.profitLossAmount),0);
       comparisonData={revenue:prevRevenue,expenses:prevExpenses,net:prevNet};
@@ -1848,14 +1904,14 @@
       const prevSold=prevCars.filter(isSoldCar);
       const prevRevenue=prevSold.reduce((sum,c)=>sum+amount(c.salePrice),0);
       const prevCost=prevSold.reduce((sum,c)=>sum+amount(c.purchasePrice)+amount(c.prepCost),0);
-      const prevExpenses=state.expenses.filter(e=>String(e.date||"").startsWith(prevYear)).reduce((sum,e)=>sum+amount(e.amount),0);
+      const prevExpenses=operatingExpenseTotal(state.expenses.filter(e=>String(e.date||"").startsWith(prevYear)));
       const prevCapital=state.capital.filter(c=>String(c.date||"").startsWith(prevYear));
       const prevNet=prevRevenue-prevCost-prevExpenses+prevCapital.filter(c=>c.profitLossType==="ربح من شخص").reduce((sum,c)=>sum+amount(c.profitLossAmount),0)-prevCapital.filter(c=>c.profitLossType==="خسارة لشخص").reduce((sum,c)=>sum+amount(c.profitLossAmount),0);
       comparisonData={revenue:prevRevenue,expenses:prevExpenses,net:prevNet};
       comparisonLabel="مقارنة بالسنة السابقة ("+prevYear+")";
     }
     const expenseCategories=new Map();
-    expenses.forEach(item=>{const key=String(item.category||"غير مصنف");expenseCategories.set(key,(expenseCategories.get(key)||0)+amount(item.amount));});
+    expenses.filter(item=>!isVehiclePrepExpense(item)).forEach(item=>{const key=String(item.category||"غير مصنف");expenseCategories.set(key,(expenseCategories.get(key)||0)+amount(item.amount));});
     const categoryRows=Array.from(expenseCategories.entries()).sort((a,b)=>b[1]-a[1]);
     const comparisonPanel=comparisonData?'<section class="panel section-gap"><h3>مقارنة الأداء بالفترة السابقة</h3><p class="panel-note">'+esc(comparisonLabel)+'</p><div class="kpi-grid">'+kpi("المبيعات السابقة",money(comparisonData.revenue),"للفترة المقارنة","blue")+kpi("المصروفات السابقة",money(comparisonData.expenses),"للفترة المقارنة","red")+kpi("صافي النتيجة السابقة",money(comparisonData.net),"للفترة المقارنة",comparisonData.net>=0?"green":"red")+kpi("تغير صافي النتيجة",money(net-comparisonData.net),"الحالي ناقص السابق",(net-comparisonData.net)>=0?"green":"red")+'</div></section>':'<section class="panel section-gap"><h3>مقارنة الأداء</h3><p class="panel-note">اختر سنة أو شهرًا محددًا لعرض مقارنة تلقائية مع الفترة السابقة.</p></section>';
     const expenseAnalysis='<section class="panel section-gap"><h3>تفصيل مصروفات الفترة حسب البند</h3><p class="panel-note">مصروفات الفترة المختارة مرتبة من الأعلى إلى الأقل.</p>'+(categoryRows.length?'<div class="summary-list">'+categoryRows.map(item=>'<div class="summary-line"><span>'+esc(item[0])+'</span><strong>'+money(item[1])+'</strong></div>').join("")+'</div>':empty("لا توجد مصروفات مسجلة في الفترة المحددة."))+'</section>';
@@ -1919,9 +1975,18 @@
     else if (currentView === "settings") host.innerHTML = renderSettings();
     $("pageTitle").textContent = titles[currentView] || "الرئيسية";
     if(currentView==="management") renderAiConversation();
+    translateDOM(document);
+    document.querySelectorAll(".language-select").forEach(select=>{select.value=uiLanguage;});
     document.querySelectorAll(".nav-btn").forEach(btn=>btn.classList.toggle("active",btn.dataset.view===currentView));
   }
 
+  function updateConditionalEditorFields(){
+    const host=$("editorFields");if(!host)return;
+    host.querySelectorAll("[data-show-field]").forEach(wrapper=>{
+      const trigger=host.querySelector('[name="'+wrapper.dataset.showField+'"]');
+      wrapper.hidden=!trigger||trigger.value!==wrapper.dataset.showValue;
+    });
+  }
   function openEditor(collection,id) {
     const schema = schemas[collection];
     if (!schema) return;
@@ -1942,11 +2007,15 @@
         ? schema.fields.map(field=>field.key==="car_id"
           ? Object.assign({},field,{options:[{value:"",label:"— اختر السيارة —"}].concat(state.cars.map(car=>({value:String(car.id)+"|"+String(car.model||"سيارة"),label:String(car.model||"سيارة")+" · "+String(car.chassis||"")})))})
           : field)
-        : schema.fields;
+        : collection === "expenses"
+          ? schema.fields.map(field=>field.key==="carId"
+            ? Object.assign({},field,{options:[{value:"",label:"— اختر السيارة —"}].concat(state.cars.filter(car=>!isSoldCar(car)||String(car.id)===String(value.carId||"")).map(car=>({value:String(car.id),label:String(car.model||"سيارة")+" · "+String(car.chassis||"")})))})
+            : field)
+          : schema.fields;
     $("editorTitle").textContent = (item ? "تعديل " : "إضافة ") + schema.title;
     $("editorFields").innerHTML = fields.map(field=>{
       const val = value[field.key] == null ? "" : value[field.key];
-      const cls = field.full ? "full" : "";
+      const cls = (field.full ? "full " : "") + (field.showWhen ? "conditional-field" : "");
       let control = "";
       if (field.type === "select") {
         control = '<select name="' + esc(field.key) + '">' + field.options.map(opt=>{
@@ -1959,8 +2028,10 @@
       } else {
         control = '<input name="' + esc(field.key) + '" type="' + (field.type || "text") + '"' + (field.type==="number"?' min="0" step="0.01" dir="ltr"':'') + (field.type==="date"?'':'') + ' value="' + esc(val) + '"' + (field.required?' required':'') + '>';
       }
-      return '<label class="' + cls + '">' + esc(field.label) + control + '</label>';
+      return '<label class="' + cls + '"' + (field.showWhen?' data-show-field="' + esc(field.showWhen.field) + '" data-show-value="' + esc(field.showWhen.value) + '"':"") + '>' + esc(field.label) + control + '</label>';
     }).join("");
+    updateConditionalEditorFields();
+    translateDOM($("editorDialog"));
     $("editorDialog").showModal();
   }
 
@@ -2029,6 +2100,9 @@
     const previousCar = collection==="cars" && editingId
       ? clone(state.cars.find(x=>String(x.id)===String(editingId)) || null)
       : null;
+    const previousExpense = collection==="expenses" && editingId
+      ? clone(state.expenses.find(x=>String(x.id)===String(editingId)) || null)
+      : null;
     const form = new FormData($("editorForm"));
     const data = {};
     schema.fields.forEach(field=>{
@@ -2095,6 +2169,8 @@
       }
       return;
     }
+    if(collection==="expenses" && data.category==="صيانة" && !data.carId){toast("اختر السيارة المرتبطة بالصيانة.","error");return;}
+    if(collection==="expenses" && data.category!=="صيانة")data.carId="";
     const negativeField = schema.fields.find(field=>field.type==="number" && data[field.key] < 0);
     if (negativeField) {
       toast("لا يمكن إدخال مبلغ سالب في حقل " + negativeField.label + ".", "error");
@@ -2160,6 +2236,11 @@
         data.id = makeId();
         state[collection].unshift(data);
       }
+      if (collection==="expenses") {
+        const savedExpense=state.expenses.find(x=>String(x.id)===String(editingId||data.id));
+        try{applyMaintenanceExpenseCost(previousExpense,savedExpense);}
+        catch(error){state=previous;toast(error.message||"تعذر ربط مصروف الصيانة بالسيارة.","error");render();return;}
+      }
       if (collection==="cars") {
         const savedCar = state.cars.find(x=>String(x.id)===String(editingId || data.id));
         try {
@@ -2189,6 +2270,7 @@
     if (saving) { toast("هناك عملية حفظ جارية؛ انتظر حتى تنتهي.", "error"); return; }
     const item = (state[collection] || []).find(x=>String(x.id)===String(id));
     if (!item) return;
+    if(collection==="cars" && (state.expenses||[]).some(expense=>isVehiclePrepExpense(expense)&&String(expense.carId)===String(item.id))){toast("لا يمكن حذف سيارة مرتبطة بمصاريف صيانة مسجلة. احذف أو انقل مصروفات الصيانة المرتبطة أولاً.","error");return;}
     if (isPeriodLocked(recordDate(item))) {
       toast("لا يمكن حذف سجل داخل فترة مقفلة. أعد فتح الفترة بسبب موثّق أولاً.", "error");
       return;
@@ -2199,6 +2281,10 @@
     }
     if (!confirm("هل تريد حذف هذا السجل؟ لا يمكن التراجع بعد الحفظ.")) return;
     const previous = clone(state);
+    if (collection==="expenses" && isVehiclePrepExpense(item)) {
+      const linkedCar=(state.cars||[]).find(car=>String(car.id)===String(item.carId));
+      if(linkedCar)linkedCar.prepCost=Math.max(0,amount(linkedCar.prepCost)-amount(item.carPrepApplied));
+    }
     if (collection==="cars") {
       const linkedMovements = (state.partnerMovements || []).filter(m =>
         m.type==="contribution" &&
@@ -2283,7 +2369,7 @@
     const feedback = $("requestFeedback");
     feedback.textContent = "";
     if (description.length<3 || description.length>500 || amountValue<=0) {
-      feedback.textContent = "يرجى إدخال بيان صحيح ومبلغ أكبر من صفر.";
+      feedback.textContent = translateText("يرجى إدخال بيان صحيح ومبلغ أكبر من صفر.");
       return;
     }
     const button = $("expenseRequestForm").querySelector("button[type=submit]");
@@ -2296,10 +2382,10 @@
       if (result.error) throw result.error;
       $("expenseRequestForm").reset();
       $("requestDate").value = today();
-      feedback.textContent = "تم إرسال الطلب بنجاح إلى الإدارة.";
+      feedback.textContent = translateText("تم إرسال الطلب بنجاح إلى الإدارة.");
       toast("وصل طلب المصروف إلى الإدارة.","success");
     } catch (error) {
-      feedback.textContent = "تعذر إرسال الطلب: " + (error.message || "تحقق من الاتصال.");
+      feedback.textContent = translateText("تعذر إرسال الطلب: ") + translateText(error.message || "تحقق من الاتصال.");
       feedback.style.color = "var(--red)";
     } finally {
       button.disabled = false;
@@ -2309,7 +2395,7 @@
   function exportCsv() {
     let rows = [], filename = currentView + ".csv";
     if (currentView==="cars") rows = state.cars.map(c=>({date:c.date,model:c.model,customer:c.customer,phone:c.phone,purchasePrice:c.purchasePrice,partnerName:c.partnerName,partnerContribution:c.partnerContribution,prepCost:c.prepCost,salePrice:c.salePrice,paidAmount:carPaid(c),remaining:carRemaining(c),status:c.status,notes:c.notes}));
-    else if (currentView==="expenses") rows = state.expenses.map(e=>({date:e.date,category:e.category,description:e.description,amount:e.amount,paymentMethod:e.paymentMethod,recipient:e.recipient,notes:e.notes}));
+    else if (currentView==="expenses") rows = state.expenses.map(e=>({date:e.date,category:e.category,vehicle:(state.cars.find(car=>String(car.id)===String(e.carId||""))||{}).model||"",description:e.description,amount:e.amount,addedToVehiclePreparation:e.carPrepApplied||0,paymentMethod:e.paymentMethod,recipient:e.recipient,notes:e.notes}));
     else if (currentView==="debts") rows = state.debts.map(d=>({partyName:d.partyName,nature:d.nature,description:d.description,totalAmount:d.totalAmount,paidAmount:d.paidAmount,remaining:debtRemaining(d),dueDate:d.dueDate,status:d.status,phone:d.phone}));
     else if (currentView==="capital") rows = state.capital.map(c=>({date:c.date,partner:c.partner,movementType:c.movementType,deposited:c.deposited,withdrawn:c.withdrawn,method:c.method,receiptNo:c.receiptNo,description:c.description}));
     else if (currentView==="requests") rows = requests.map(r=>({date:r.expense_date,description:r.description,amount:r.amount,status:r.status,created_at:r.created_at}));
@@ -2362,9 +2448,9 @@
       const inPeriod=value=>{const date=String(value||"");if(year!=="ALL"&&!date.startsWith(year))return false;if(month!=="ALL"&&!date.startsWith(year+"-"+String(month).padStart(2,"0")))return false;return true;};
       const periodCars=state.cars.filter(c=>inPeriod(c.date)).filter(isSoldCar);
       const periodExpenses=state.expenses.filter(e=>inPeriod(e.date));
-      const categories=new Map();periodExpenses.forEach(e=>{const key=String(e.category||"غير مصنف");categories.set(key,(categories.get(key)||0)+amount(e.amount));});
+      const categories=new Map();periodExpenses.filter(e=>!isVehiclePrepExpense(e)).forEach(e=>{const key=String(e.category||"غير مصنف");categories.set(key,(categories.get(key)||0)+amount(e.amount));});
       const sales=periodCars.reduce((sum,c)=>sum+amount(c.salePrice),0),cost=periodCars.reduce((sum,c)=>sum+amount(c.purchasePrice)+amount(c.prepCost),0);
-      const expTotal=periodExpenses.reduce((sum,e)=>sum+amount(e.amount),0);
+      const expTotal=operatingExpenseTotal(periodExpenses);
       const periodCapital=state.capital.filter(c=>inPeriod(c.date));
       const net=sales-cost-expTotal+periodCapital.filter(c=>c.profitLossType==="ربح من شخص").reduce((sum,c)=>sum+amount(c.profitLossAmount),0)-periodCapital.filter(c=>c.profitLossType==="خسارة لشخص").reduce((sum,c)=>sum+amount(c.profitLossAmount),0);
       rows=[{البند:"إيرادات البيع",المبلغ:sales},{البند:"تكلفة السيارات المباعة",المبلغ:cost},{البند:"مجمل الربح",المبلغ:sales-cost},{البند:"مصروفات التشغيل",المبلغ:expTotal},{البند:"صافي النتيجة",المبلغ:net},...Array.from(categories.entries()).map(item=>({البند:"مصروف: "+item[0],المبلغ:item[1]}))];
@@ -2404,15 +2490,15 @@
     const button=$("loginForm").querySelector('button[type="submit"]');
     const errorBox=$("loginError");errorBox.textContent="";
     const email=$("loginEmail").value.trim();const password=$("loginPassword").value;
-    button.disabled=true;button.textContent="جارٍ تسجيل الدخول...";
+    button.disabled=true;button.textContent=translateText("جارٍ تسجيل الدخول...");
     try {
       const result=await db.auth.signInWithPassword({email:email,password:password});
       if(result.error) throw result.error;
       await boot(result.data.session);
     } catch(error) {
-      errorBox.textContent=error.message||"تعذر تسجيل الدخول. راجع البريد وكلمة المرور.";
+      errorBox.textContent=translateText(error.message||"تعذر تسجيل الدخول. راجع البريد وكلمة المرور.");
     } finally {
-      button.disabled=false;button.textContent="تسجيل الدخول";
+      button.disabled=false;button.textContent=translateText("تسجيل الدخول");
     }
   });
 
@@ -2452,7 +2538,9 @@
     reportSystemIssue("error","تعذر إكمال عملية في الموقع",message,"promise-error:"+message);
   });
 
+  document.querySelectorAll(".language-select").forEach(select=>select.addEventListener("change",()=>setLanguage(select.value)));
   $("employeeLogoutBtn").addEventListener("click",logout);
+  $("editorFields").addEventListener("change",event=>{if(event.target.name==="category")updateConditionalEditorFields();});
   $("editorForm").addEventListener("submit",submitEditor);
   $("closeEditorBtn").addEventListener("click",()=>$("editorDialog").close());
   $("cancelEditorBtn").addEventListener("click",()=>$("editorDialog").close());
