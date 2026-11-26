@@ -782,3 +782,22 @@ button:disabled{opacity:.45;cursor:not-allowed;filter:grayscale(.15);transform:n
 @media(max-width:520px){
   .form-grid.three{grid-template-columns:1fr}
 }
+
+/* Admin-only audit and management recommendations */
+.admin-nav-group{padding:8px 7px 9px;border:1px solid #eadfc9;border-radius:13px;background:linear-gradient(145deg,#fffdf8,#fbf7ee)}
+.admin-nav-group .nav-group-title{color:#8a672d}
+.management-recommendations{overflow:hidden}
+.recommendation-list{display:grid;gap:10px}
+.recommendation-card{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 14px;border:1px solid #e7ebf1;border-radius:13px;background:#fff}
+.recommendation-card.urgent{border-inline-start:4px solid #c34b55}
+.recommendation-card.warning{border-inline-start:4px solid #c08b37}
+.recommendation-card.info{border-inline-start:4px solid #6b91b5}
+.recommendation-card.good{border-inline-start:4px solid #29936b}
+.recommendation-copy{min-width:0}
+.recommendation-title{color:#2d3b50;font-size:12px;font-weight:900}
+.recommendation-copy p{margin:5px 0 0;color:#77849a;font-size:11px;line-height:1.8}
+.recommendation-actions{display:flex;align-items:center;gap:9px;flex:0 0 auto}
+@media(max-width:620px){
+ .recommendation-card{align-items:flex-start;flex-direction:column;gap:10px;padding:12px}
+ .recommendation-actions{width:100%;justify-content:space-between}
+}
