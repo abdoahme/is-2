@@ -831,6 +831,7 @@
       tx.category==="car_prep" || (tx.category==="reversal"&&tx.source_type==="car_prep")
     );
     const netOf=(list)=>list.reduce((sum,tx)=>sum+(tx.direction==="inflow"?amount(tx.amount):-amount(tx.amount)),0);
+    const netPayments=(list)=>list.reduce((sum,tx)=>sum+(tx.direction==="outflow"?amount(tx.amount):-amount(tx.amount)),0);
     const cashDates=Array.from(new Set(periodTransactions.filter(tx=>tx.payment_method==="cash").map(tx=>tx.transaction_date)));
     const reconciledDates=new Set((cashReconciliations||[]).filter(item=>item.reconciliation_date>=startDate&&item.reconciliation_date<=endDate).map(item=>item.reconciliation_date));
     const unreconciledCashDates=cashDates.filter(date=>!reconciledDates.has(date)).sort();
@@ -853,8 +854,8 @@
       cashIn,cashOut,cashNet:cashIn-cashOut,bankIn,bankOut,bankNet:bankIn-bankOut,
       totalIn:allIn,totalOut:allOut,totalCashNet:allIn-allOut,
       carCollectionsInPeriod:netOf(collectionMovements),
-      carPurchasePaymentsInPeriod:netOf(purchaseMovements),
-      carPrepPaymentsInPeriod:netOf(prepMovements),
+      carPurchasePaymentsInPeriod:netPayments(purchaseMovements),
+      carPrepPaymentsInPeriod:netPayments(prepMovements),
       cashDifferenceTotal,unreconciledCashDates,
       partnerBalances:(partnerBalances()||[]).map(item=>({
         partner:item.partner,contributed:item.contributed,withdrawn:item.withdrawn,balance:item.balance
