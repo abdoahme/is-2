@@ -44,7 +44,7 @@
     capital:"رأس المال والخزينة", partners:"حركة الشركاء",
     cashbook:"دفتر الحركة والخزينة", inventory:"مخزون السيارات والأرباح",
     customers:"حسابات العملاء", reminders:"التنبيهات والاستحقاقات",
-    audit:"سجل المراجعة", backups:"النسخ الاحتياطي", management:"اقتراحات الإدارة",
+    audit:"سجل المراجعة", backups:"النسخ الاحتياطي", management:"اقتراحات الإدارة", staff:"الموظفون والصلاحيات",
     reports:"التقارير والتقفيل", monthlyClosing:"التقفيل الشهري",
     yearlyClosing:"التقفيل السنوي", requests:"طلبات الموظفين", settings:"الإعدادات والروابط"
   };
@@ -140,6 +140,7 @@
   let state = emptyState();
   let recordId = null;
   let requests = [];
+  let staffRows = [];
   let financialTransactions = [];
   let cashReconciliations = [];
   let auditEntries = [];
@@ -218,6 +219,7 @@
         await loadAdminState();
         await loadFinancialOperations();
         await loadRequests();
+        await loadStaff();
         $("bootScreen").hidden = true;
         $("employeeShell").hidden = true;
         $("appShell").hidden = false;
@@ -568,6 +570,12 @@
     const sharePercent=Number.isFinite(explicit)&&explicit>0?Math.min(100,explicit):inferred;
     const partnerProfit=amount(car.partnerContribution)>0?profit*sharePercent/100:0;
     return {cost,profit,sharePercent,partnerProfit,showroomProfit:profit-partnerProfit,showPartner:amount(car.partnerContribution)>0,inferred:!(Number.isFinite(explicit)&&explicit>0)};
+  }
+
+  async function loadStaff() {
+    const result=await db.rpc("admin_list_is_motors_users");
+    if(result.error)throw result.error;
+    staffRows=result.data||[];
   }
 
   async function loadRequests() {
@@ -1530,6 +1538,24 @@
       (rows.length ? '<div class="data-list">' + rows.map(r=>'<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">' + esc(r.description) + '</div><div class="data-card-sub">' + dateText(r.expense_date) + ' · ' + "طلب من حساب موظف" + '</div></div>' + badge(r.status==="recorded"?"تم التسجيل":"بانتظار الاعتماد",r.status==="recorded"?"ok":"warn") + '</div><div class="data-card-grid"><div class="data-cell"><span>المبلغ</span><strong>' + money(r.amount) + '</strong></div><div class="data-cell"><span>نوع المصروف</span><strong>مستلزمات</strong></div><div class="data-cell"><span>تاريخ الإرسال</span><strong>' + dateText(String(r.created_at||"").slice(0,10)) + '</strong></div><div class="data-cell"><span>الحالة</span><strong>' + esc(r.status) + '</strong></div></div><div class="card-actions">' + (r.status==="pending" ? '<button class="btn btn-primary btn-small" data-action="record-request" data-id="' + esc(r.id) + '">اعتماد وإضافة للمصروفات</button><button class="btn btn-danger btn-small" data-action="delete-request" data-id="' + esc(r.id) + '">رفض وحذف</button>' : badge("تمت إضافته إلى المصروفات","ok")) + '</div></article>').join("") + '</div>' : empty("لا توجد طلبات مصروفات."));
   }
 
+  function renderStaffPage() {
+    const active=staffRows.filter(item=>item.role==="user").length;
+    const suspended=staffRows.filter(item=>item.role==="suspended").length;
+    const cards=staffRows.map(item=>{
+      const roleLabel=item.role==="admin"?"مدير النظام":(item.role==="suspended"?"موقوف":(item.role==="user"?"موظف نشط":"غير مضاف"));
+      const roleClass=item.role==="admin"?"gold":(item.role==="user"?"ok":"warn");
+      const canManage=item.role!=="admin";
+      const action=item.role==="user"
+        ? '<button class="btn btn-danger btn-small" data-action="toggle-staff-access" data-id="'+esc(item.user_id)+'" data-status="suspended">إيقاف الوصول</button>'
+        : (canManage?'<button class="btn btn-primary btn-small" data-action="toggle-staff-access" data-id="'+esc(item.user_id)+'" data-status="user">تفعيل الوصول</button>':badge("صلاحية محمية","gold"));
+      return '<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">'+esc(item.email||"حساب بدون بريد")+'</div><div class="data-card-sub">تاريخ إنشاء الحساب: '+dateText(String(item.created_at||"").slice(0,10))+'</div></div>'+badge(roleLabel,roleClass)+'</div><div class="data-card-grid"><div class="data-cell"><span>إجمالي طلبات المصروفات</span><strong>'+Number(item.total_requests||0)+'</strong></div><div class="data-cell"><span>طلبات معلقة</span><strong>'+Number(item.pending_requests||0)+'</strong></div><div class="data-cell"><span>طلبات معتمدة</span><strong>'+Number(item.recorded_requests||0)+'</strong></div><div class="data-cell"><span>آخر طلب</span><strong>'+dateText(String(item.last_request_at||"").slice(0,10))+'</strong></div></div><div class="card-actions">'+action+'</div></article>';
+    }).join("");
+    return heading("الموظفون والصلاحيات","متابعة حسابات الدخول ونشاط طلبات المصروفات. يمكن تفعيل أو إيقاف حساب الموظف؛ لا يمكن ترقية حساب إلى مدير من هذه الشاشة.",'<button class="btn btn-outline btn-small" data-action="refresh-staff">تحديث القائمة</button>')+
+      '<div class="kpi-grid">'+kpi("كل الحسابات",staffRows.length,"حسابات مسجلة","blue")+kpi("موظفون نشطون",active,"صلاحية موظف","green")+kpi("حسابات موقوفة",suspended,"لا يمكنها دخول النظام",suspended?"red":"")+'</div>'+
+      '<section class="panel section-gap"><p class="panel-note">مؤشرات الأداء هنا تقيس طلبات المصروفات المسجلة في النظام فقط، ولا تمثل تقييمًا شاملًا لأداء الموظف. إيقاف الحساب لا يحذف بياناته أو طلباته.</p></section>'+
+      (cards?'<div class="data-list">'+cards+'</div>':empty("لا توجد حسابات مسجلة."));
+  }
+
   function renderSettings() {
     return heading("الإعدادات والروابط","معلومات النظام والروابط التي تحتاجها للإدارة والتعديل.") +
       '<div class="two-col"><section class="panel"><h3>حالة الاتصال</h3><div class="summary-list">' +
@@ -1700,6 +1726,7 @@
     else if (currentView === "audit") host.innerHTML = renderAudit();
     else if (currentView === "backups") host.innerHTML = renderBackups();
     else if (currentView === "management") host.innerHTML = renderManagementPage();
+    else if (currentView === "staff") host.innerHTML = renderStaffPage();
     else if (currentView === "reports") host.innerHTML = renderReports();
     else if (currentView === "monthlyClosing") host.innerHTML = renderMonthlyClosing();
     else if (currentView === "yearlyClosing") host.innerHTML = renderYearlyClosing();
@@ -2252,6 +2279,21 @@
     else if(action==="record-request")await recordRequest(btn.dataset.id);
     else if(action==="delete-request")await deleteRequest(btn.dataset.id);
     else if(action==="refresh-requests"){await loadRequests();render();toast("تم تحديث قائمة الطلبات.","success");}
+    else if(action==="refresh-staff"){try{await loadStaff();render();toast("تم تحديث قائمة الموظفين.","success");}catch(error){toast("تعذر تحميل الموظفين: "+error.message,"error");}}
+    else if(action==="toggle-staff-access"){
+      if(role!=="admin")return;
+      const target=staffRows.find(item=>String(item.user_id)===String(btn.dataset.id));
+      const nextStatus=btn.dataset.status;
+      if(!target||target.role==="admin"||!["user","suspended"].includes(nextStatus))return;
+      const actionText=nextStatus==="suspended"?"إيقاف دخول هذا الموظف":"إعادة تفعيل دخول هذا الموظف";
+      if(!confirm(actionText+"؟ لن يتم حذف أي بيانات أو طلبات سابقة."))return;
+      try{
+        const changed=await db.rpc("admin_set_is_motors_user_status",{target_user_id:target.user_id,new_status:nextStatus});
+        if(changed.error)throw changed.error;
+        await loadStaff();await loadRequests();render();
+        toast(nextStatus==="suspended"?"تم إيقاف وصول الحساب مع الاحتفاظ ببياناته.":"تم تفعيل وصول الحساب.","success");
+      }catch(error){toast("تعذر تغيير الصلاحية: "+(error.message||"خطأ غير معروف"),"error");}
+    }
     else if(action==="backup-json")await backupJson();
     else if(action==="create-backup")await createManualBackup();
     else if(action==="restore-backup")await restoreCloudBackup(btn.dataset.id);
