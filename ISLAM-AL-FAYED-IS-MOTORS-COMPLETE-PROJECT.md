@@ -17,7 +17,7 @@
 - مستودع GitHub: https://github.com/abdoahme/is-2
 - الفرع الذي يحتوي على هذه النسخة: `redesign/islam-al-fayed-interface`
 - الفرع الافتراضي للمستودع: `main`
-- نقطة بداية نسخة إعادة التصميم: `33b34c784456a6034a0d6db3d6819ddadfb1adca`
+- نقطة بداية نسخة إعادة التصميم: `65062cd4620599d7fc3d8377fb76cfab8328f116`
 - التغيير المرئي الأول في CSS: `674616cdb937b08d7863d06f32117f9b6f3c26d5`
 - ملفات التطبيق الأساسية:
   - `index.html` — هيكل الصفحات وتسجيل الدخول والتنقل والنوافذ.
@@ -34,14 +34,14 @@
 | Project ID | `prj_K7UFKyRH9mwAeWUj93mScwHz3a8z` |
 | Team ID | `team_NTL4UG0h5TsX1yl1HVcNq2JA` |
 | النطاق | https://is-motors.vercel.app/ |
-| Deployment ID المرتبط بالنطاق في آخر تحقق | `dpl_9e5uD5pkCYGVYoVyS5S9R8H3NkZe` |
-| رابط النشر المرتبط | https://is-motors-rcnzc30vu-aa01028111-9066.vercel.app/ |
+| Deployment ID المرتبط بالنطاق في آخر تحقق | `dpl_9eN6tCpxPzzs8yp3RpdN9oWiVEiP` |
+| رابط النشر المرتبط | https://is-motors-24ivxbnti-aa01028111-9066.vercel.app/ |
 | حالة ذلك النشر عند آخر تحقق | `READY` |
 | فرع المصدر لذلك النشر | `redesign/islam-al-fayed-interface` |
-| Commit النشر السابق | `33b34c784456a6034a0d6db3d6819ddadfb1adca` |
+| Commit النشر السابق | `65062cd4620599d7fc3d8377fb76cfab8328f116` |
 | المنطقة | `iad1` |
 
-**ملاحظة نشر مهمة:** بعد إعادة تصميم الواجهة، تم التحقق من أن النطاق `is-motors.vercel.app` مرتبط بالنشر `dpl_9e5uD5pkCYGVYoVyS5S9R8H3NkZe` وحالته `READY`، وأن مصدره هو فرع إعادة التصميم المذكور أعلاه. خاصية `target` في سجل Vercel ما زالت `null`؛ لذلك الوصف الدقيق هو أن النطاق تم إسناده إلى نشر جاهز، وليس الادعاء بأن سجل النشر يحمل `Target = Production`.
+**ملاحظة نشر مهمة:** بعد إعادة تصميم الواجهة، تم التحقق من أن النطاق `is-motors.vercel.app` مرتبط بالنشر `dpl_9eN6tCpxPzzs8yp3RpdN9oWiVEiP` وحالته `READY`، وأن مصدره هو فرع إعادة التصميم المذكور أعلاه. خاصية `target` في سجل Vercel ما زالت `null`؛ لذلك الوصف الدقيق هو أن النطاق تم إسناده إلى نشر جاهز، وليس الادعاء بأن سجل النشر يحمل `Target = Production`.
 
 ## 4. قاعدة البيانات — Supabase
 
