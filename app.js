@@ -357,14 +357,24 @@
       });
     });
     (sourceState.cars||[]).filter(car=>String(car.status||"")==="كاش" && amount(car.salePrice)>0 && car.id).forEach(car=>{
-      const hasAnyCollectionHistory=financialTransactions.some(tx=>String(tx.car_id||"")===String(car.id) && (tx.category==="car_collection" || (tx.category==="reversal" && ["car","car_collection","car_cash"].includes(tx.source_type))));
       const reversed=new Set(financialTransactions.filter(tx=>tx.reversal_of).map(tx=>String(tx.reversal_of)));
+      const previousAuto=financialTransactions.find(tx=>String(tx.car_id||"")===String(car.id)&&tx.source_type==="car_cash"&&tx.category==="car_collection");
+      if(previousAuto && !reversed.has(String(previousAuto.id))){
+        output.push({
+          user_id:session.user.id,transaction_date:previousAuto.transaction_date,direction:previousAuto.direction,
+          category:previousAuto.category,payment_method:previousAuto.payment_method,amount:amount(previousAuto.amount),
+          car_id:String(car.id),person_name:car.customer||"",description:previousAuto.description,
+          source_type:"car_cash",source_id:String(car.id),is_legacy:false
+        });
+        return;
+      }
+      const hasAnyCollectionHistory=financialTransactions.some(tx=>String(tx.car_id||"")===String(car.id) && (tx.category==="car_collection" || (tx.category==="reversal" && ["car","car_collection","car_cash"].includes(tx.source_type))));
       const paid=financialTransactions.filter(tx=>String(tx.car_id||"")===String(car.id) &&
         (tx.category==="car_collection" || (tx.category==="reversal" && ["car","car_collection","car_cash"].includes(tx.source_type))) &&
         !reversed.has(String(tx.id))
       ).reduce((sum,tx)=>sum+(tx.direction==="inflow"?amount(tx.amount):-amount(tx.amount)),0);
       const remaining=Math.max(0,amount(car.salePrice)-paid);
-      if(!hasAnyCollectionHistory && remaining>0.005 && /^\d{4}-\d{2}-\d{2}$/.test(String(car.date||""))){
+      if(!previousAuto && !hasAnyCollectionHistory && remaining>0.005 && /^\d{4}-\d{2}-\d{2}$/.test(String(car.date||""))){
         output.push({
           user_id:session.user.id,transaction_date:car.date,direction:"inflow",category:"car_collection",
           payment_method:"cash",amount:remaining,car_id:String(car.id),person_name:car.customer||"",
