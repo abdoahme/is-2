@@ -92,7 +92,7 @@
       fields:[
         {key:"model",label:"بيان السيارة / الموديل",required:true},
         {key:"date",label:"تاريخ الشراء",type:"date",required:true},
-        {key:"saleDate",label:"تاريخ البيع",type:"date",showWhen:{field:"status",value:"كاش"}},
+        {key:"saleDate",label:"تاريخ البيع الفعلي",type:"date"},
         {key:"chassis",label:"رقم الشاسيه"},
         {key:"purchasePrice",label:"سعر الشراء",type:"number"},
         {key:"partnerName",label:"اسم الشريك المساهم (اختياري)"},
@@ -2106,13 +2106,13 @@
       : null;
     const form = new FormData($("editorForm"));
     const data = {};
+    let invalidNumericField="";
     schema.fields.forEach(field=>{
       const raw = form.get(field.key);
-      if(field.type==="number" && String(raw||"").trim()!=="" && !Number.isFinite(num(raw))){
-        throw new Error("قيمة رقمية غير صالحة في حقل "+field.label+".");
-      }
+      if(field.type==="number" && !isValidNumericInput(raw)) invalidNumericField=field.label;
       data[field.key] = field.type==="number" ? num(raw) : String(raw || "").trim();
     });
+    if(invalidNumericField){toast("قيمة رقمية غير صالحة في حقل "+invalidNumericField+". لم يتم الحفظ.","error");return;}
     const originalRecord = editingId ? (state[collection] || []).find(item=>String(item.id)===String(editingId)) : null;
     const originalDate = recordDate(originalRecord);
     const proposedDate = recordDate(data);
