@@ -33,7 +33,7 @@
   const titles = {
     overview:"الرئيسية", cars:"السيارات", expenses:"المصروفات",
     receivables:"المبالغ المتبقية", debts:"الذمم والأقساط",
-    capital:"رأس المال والخزينة", requests:"طلبات الموظفين", settings:"الإعدادات والروابط"
+    capital:"رأس المال والخزينة", partners:"حركة الشركاء", reports:"التقارير والتقفيل", requests:"طلبات الموظفين", settings:"الإعدادات والروابط"
   };
   const schemas = {
     cars: {
@@ -103,6 +103,8 @@
   let editingCollection = null;
   let editingId = null;
   let saving = false;
+  let reportYear = "ALL";
+  let reportMonth = "ALL";
   let toastTimer = null;
 
   function toast(message, type) {
@@ -343,7 +345,7 @@
     const pending = rows.filter(r=>r.status==="pending").length;
     return heading("طلبات الموظفين","طلبات مصروفات المستلزمات المرسلة من حسابات الموظفين.",'<button class="btn btn-outline btn-small" data-action="refresh-requests">تحديث القائمة</button>') +
       '<div class="kpi-grid">' + kpi("طلبات معلقة",pending,"تحتاج مراجعة","red") + kpi("إجمالي الطلبات",requests.length,"كل الطلبات الواردة","") + '</div>' +
-      (rows.length ? '<div class="data-list">' + rows.map(r=>'<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">' + esc(r.description) + '</div><div class="data-card-sub">' + dateText(r.expense_date) + ' · ' + esc(r.submitted_by || "حساب موظف") + '</div></div>' + badge(r.status==="recorded"?"تم التسجيل":"بانتظار الاعتماد",r.status==="recorded"?"ok":"warn") + '</div><div class="data-card-grid"><div class="data-cell"><span>المبلغ</span><strong>' + money(r.amount) + '</strong></div><div class="data-cell"><span>نوع المصروف</span><strong>مستلزمات</strong></div><div class="data-cell"><span>تاريخ الإرسال</span><strong>' + dateText(String(r.created_at||"").slice(0,10)) + '</strong></div><div class="data-cell"><span>الحالة</span><strong>' + esc(r.status) + '</strong></div></div><div class="card-actions">' + (r.status==="pending" ? '<button class="btn btn-primary btn-small" data-action="record-request" data-id="' + esc(r.id) + '">اعتماد وإضافة للمصروفات</button><button class="btn btn-danger btn-small" data-action="delete-request" data-id="' + esc(r.id) + '">رفض وحذف</button>' : badge("تمت إضافته إلى المصروفات","ok")) + '</div></article>').join("") + '</div>' : empty("لا توجد طلبات مصروفات."));
+      (rows.length ? '<div class="data-list">' + rows.map(r=>'<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">' + esc(r.description) + '</div><div class="data-card-sub">' + dateText(r.expense_date) + ' · ' + "طلب من حساب موظف" + '</div></div>' + badge(r.status==="recorded"?"تم التسجيل":"بانتظار الاعتماد",r.status==="recorded"?"ok":"warn") + '</div><div class="data-card-grid"><div class="data-cell"><span>المبلغ</span><strong>' + money(r.amount) + '</strong></div><div class="data-cell"><span>نوع المصروف</span><strong>مستلزمات</strong></div><div class="data-cell"><span>تاريخ الإرسال</span><strong>' + dateText(String(r.created_at||"").slice(0,10)) + '</strong></div><div class="data-cell"><span>الحالة</span><strong>' + esc(r.status) + '</strong></div></div><div class="card-actions">' + (r.status==="pending" ? '<button class="btn btn-primary btn-small" data-action="record-request" data-id="' + esc(r.id) + '">اعتماد وإضافة للمصروفات</button><button class="btn btn-danger btn-small" data-action="delete-request" data-id="' + esc(r.id) + '">رفض وحذف</button>' : badge("تمت إضافته إلى المصروفات","ok")) + '</div></article>').join("") + '</div>' : empty("لا توجد طلبات مصروفات."));
   }
 
   function renderSettings() {
@@ -364,6 +366,100 @@
       '</div></section>';
   }
 
+  function renderPartners() {
+    const source = Array.isArray(state.partnerMovements) ? state.partnerMovements : [];
+    const q = ($("globalSearch").value || "").trim().toLowerCase();
+    const filtered = source.filter(m => {
+      const car = state.cars.find(c => String(c.id) === String(m.sourceCarId));
+      const haystack = [m.partner,m.note,m.type,car && car.model,m.date].join(" ").toLowerCase();
+      return !q || haystack.includes(q);
+    }).slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
+    const sums = {contribution:0,payout:0,profit:0,loss:0};
+    source.forEach(m => { if (sums[m.type] !== undefined) sums[m.type] += amount(m.amount); });
+    const labels = {contribution:"مساهمة / إيداع",payout:"مسحوبات",profit:"أرباح",loss:"خسائر"};
+    return heading("حركة الشركاء","سجل المساهمات والمسحوبات والأرباح والخسائر المرتبطة بحركات رأس المال وشراكات السيارات.") +
+      '<div class="kpi-grid">' +
+      kpi("إجمالي المساهمات",money(sums.contribution),"إيداعات ومساهمات","green") +
+      kpi("إجمالي المسحوبات",money(sums.payout),"مبالغ خارجة للشركاء","red") +
+      kpi("الأرباح المسجلة",money(sums.profit),"أرباح مرتبطة بالحركات","gold") +
+      kpi("الخسائر المسجلة",money(sums.loss),"خسائر مرتبطة بالحركات","") +
+      '</div>' +
+      (filtered.length ? '<div class="data-list">' + filtered.map(m=>{
+        const car = state.cars.find(c => String(c.id) === String(m.sourceCarId));
+        const label = labels[m.type] || m.type || "حركة شريك";
+        const color = m.type==="contribution" || m.type==="profit" ? "ok" : "warn";
+        return '<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">' + esc(m.partner || "شريك غير محدد") + '</div><div class="data-card-sub">' + esc(m.note || label) + '</div></div>' + badge(label,color) + '</div><div class="data-card-grid"><div class="data-cell"><span>قيمة الحركة</span><strong>' + money(m.amount) + '</strong></div><div class="data-cell"><span>التاريخ</span><strong>' + dateText(m.date) + '</strong></div><div class="data-cell"><span>السيارة المرتبطة</span><strong>' + esc(car ? car.model : "—") + '</strong></div><div class="data-cell"><span>نوع المصدر</span><strong>' + esc(m.sourceCarId ? "شراكة سيارة" : "رأس مال") + '</strong></div></div></article>';
+      }).join("") + '</div>' : empty("لا توجد حركات شركاء مسجلة."));
+  }
+
+  function renderReports() {
+    const allYears = Array.from(new Set(
+      [].concat(state.cars.map(x=>String(x.date||"").slice(0,4)),
+        state.expenses.map(x=>String(x.date||"").slice(0,4)),
+        state.capital.map(x=>String(x.date||"").slice(0,4)),
+        state.debts.map(x=>String(x.dueDate||x.date||"").slice(0,4)))
+        .filter(x=>/^\d{4}$/.test(x))
+    )).sort((a,b)=>b.localeCompare(a));
+    const currentYear = String(new Date().getFullYear());
+    if (!allYears.includes(currentYear)) allYears.unshift(currentYear);
+    const months = ["كل الشهور","يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+    const yearsHtml = '<option value="ALL"' + (reportYear==="ALL"?" selected":"") + '>كل السنوات</option>' +
+      allYears.map(y=>'<option value="' + esc(y) + '"' + (reportYear===y?" selected":"") + '>' + esc(y) + '</option>').join("");
+    const monthsHtml = months.map((m,i)=>'<option value="' + (i===0?"ALL":i) + '"' + (String(reportMonth)===(i===0?"ALL":String(i))?" selected":"") + '>' + m + '</option>').join("");
+    const inPeriod = (value) => {
+      const date = String(value || "");
+      if (reportYear !== "ALL" && !date.startsWith(reportYear)) return false;
+      if (reportMonth !== "ALL" && !date.startsWith(reportYear + "-" + String(reportMonth).padStart(2,"0"))) return false;
+      return true;
+    };
+    const cars = state.cars.filter(c=>inPeriod(c.date));
+    const expenses = state.expenses.filter(e=>inPeriod(e.date));
+    const debts = state.debts.filter(d=>inPeriod(d.dueDate || d.date));
+    const capital = state.capital.filter(c=>inPeriod(c.date));
+    const sold = cars.filter(c=>amount(c.salePrice)>0);
+    const revenue = sold.reduce((s,c)=>s+amount(c.salePrice),0);
+    const cost = sold.reduce((s,c)=>s+amount(c.purchasePrice)+amount(c.prepCost),0);
+    const gross = revenue-cost;
+    const expenseTotal = expenses.reduce((s,e)=>s+amount(e.amount),0);
+    const net = gross-expenseTotal;
+    const carRemainingTotal = cars.reduce((s,c)=>s+carRemaining(c),0);
+    const debtRemainingTotal = debts.filter(d=>String(d.nature||"").includes("لنا")).reduce((s,d)=>s+debtRemaining(d),0);
+    const capitalIn = capital.reduce((s,c)=>s+amount(c.deposited),0);
+    const capitalOut = capital.reduce((s,c)=>s+amount(c.withdrawn),0);
+    let closingText = "اعرض شهراً محدداً لمعرفة حالة التقفيل.";
+    let closingClass = "gold";
+    if (reportYear!=="ALL" && reportMonth!=="ALL") {
+      const key = reportYear + "-" + String(reportMonth).padStart(2,"0");
+      const closed = Boolean(state.closings && state.closings.months && state.closings.months[key]);
+      closingText = closed ? "الشهر مقفل حسب السجل المحفوظ" : "الشهر مفتوح حسب السجل المحفوظ";
+      closingClass = closed ? "ok" : "warn";
+    } else if (reportYear!=="ALL" && reportMonth==="ALL") {
+      const closed = Boolean(state.closings && state.closings.annual && state.closings.annual[reportYear]);
+      closingText = closed ? "السنة مقفلة حسب السجل المحفوظ" : "السنة غير مقفلة حسب السجل المحفوظ";
+      closingClass = closed ? "ok" : "warn";
+    }
+    return heading("التقارير والتقفيل","تقرير مشتريات ومبيعات ومصروفات ونتيجة الفترة من السجلات الحالية.",
+      '<select id="reportYear" class="search-input" style="width:auto">' + yearsHtml + '</select><select id="reportMonth" class="search-input" style="width:auto">' + monthsHtml + '</select>') +
+      '<div class="kpi-grid">' +
+      kpi("إيرادات بيع السيارات",money(revenue),"السيارات المسجلة كمباعة بالفترة","green") +
+      kpi("تكلفة السيارات المباعة",money(cost),"شراء وتجهيز السيارات المباعة","") +
+      kpi("مجمل ربح / خسارة السيارات",money(gross),"قبل المصروفات التشغيلية",gross>=0?"gold":"red") +
+      kpi("مصروفات الفترة",money(expenseTotal),"مصروفات التشغيل","red") +
+      kpi("صافي نتيجة الفترة",money(net),"مجمل نتيجة السيارات ناقص المصروفات",net>=0?"green":"red") +
+      '</div><div class="two-col"><section class="panel"><h3>ملخص حركة الفترة</h3><div class="summary-list">' +
+      '<div class="summary-line"><span>عدد السيارات المسجلة</span><strong>' + cars.length + '</strong></div>' +
+      '<div class="summary-line"><span>عدد السيارات المباعة</span><strong>' + sold.length + '</strong></div>' +
+      '<div class="summary-line"><span>إجمالي المبالغ المتبقية للسيارات</span><strong class="negative">' + money(carRemainingTotal) + '</strong></div>' +
+      '<div class="summary-line"><span>الذمم المستحقة للمعرض</span><strong class="negative">' + money(debtRemainingTotal) + '</strong></div>' +
+      '<div class="summary-line"><span>إيداعات رأس المال</span><strong class="positive">' + money(capitalIn) + '</strong></div>' +
+      '<div class="summary-line"><span>مسحوبات رأس المال</span><strong class="negative">' + money(capitalOut) + '</strong></div>' +
+      '</div></section><section class="panel"><h3>حالة التقفيل المالي</h3>' + badge(closingText,closingClass) +
+      '<p class="panel-note section-gap">الحالة معروضة كما هي محفوظة في قاعدة البيانات. لا يتم إقفال فترة أو تعديل لقطة مالية تلقائياً من هذه الصفحة.</p>' +
+      '<div class="summary-list"><div class="summary-line"><span>تقفيل شهري محفوظ</span><strong>' + Object.values((state.closings&&state.closings.months)||{}).filter(Boolean).length + '</strong></div>' +
+      '<div class="summary-line"><span>تقفيل نصف سنوي محفوظ</span><strong>' + Object.values((state.closings&&state.closings.halves)||{}).filter(Boolean).length + '</strong></div>' +
+      '<div class="summary-line"><span>تقفيل سنوي محفوظ</span><strong>' + Object.values((state.closings&&state.closings.annual)||{}).filter(Boolean).length + '</strong></div></div></section></div>';
+  }
+
   function render() {
     if (role !== "admin") return;
     const host = $("mainContent");
@@ -373,6 +469,8 @@
     else if (currentView === "debts") host.innerHTML = renderCollection("debts","الذمم والأقساط","المبالغ المستحقة للمعرض أو المستحقة عليه.",debtCard);
     else if (currentView === "capital") host.innerHTML = renderCollection("capital","رأس المال وحركة الخزينة","الإيداعات والمسحوبات وحركة الشركاء.",capitalCard) +
       '<section class="panel section-gap"><h3>ملخص رأس المال</h3><div class="summary-list"><div class="summary-line"><span>إجمالي الإيداعات</span><strong class="positive">' + money(metrics().capitalIn) + '</strong></div><div class="summary-line"><span>إجمالي المسحوبات</span><strong class="negative">' + money(metrics().capitalOut) + '</strong></div><div class="summary-line"><span>صافي الحركة</span><strong>' + money(metrics().capitalNet) + '</strong></div></div></section>';
+    else if (currentView === "partners") host.innerHTML = renderPartners();
+    else if (currentView === "reports") host.innerHTML = renderReports();
     else if (currentView === "receivables") host.innerHTML = renderReceivables();
     else if (currentView === "requests") host.innerHTML = renderRequests();
     else if (currentView === "settings") host.innerHTML = renderSettings();
@@ -581,6 +679,10 @@
     currentView=btn.dataset.view;
     $("globalSearch").value="";
     render();
+  });
+  $("mainContent").addEventListener("change",(event)=>{
+    if(event.target.id==="reportYear") { reportYear=event.target.value; render(); }
+    if(event.target.id==="reportMonth") { reportMonth=event.target.value; render(); }
   });
   $("mainContent").addEventListener("click",async(event)=>{
     const btn=event.target.closest("[data-action]");
