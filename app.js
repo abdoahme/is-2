@@ -141,6 +141,7 @@
   let recordId = null;
   let requests = [];
   let staffRows = [];
+  let aiConversation = [];
   let financialTransactions = [];
   let cashReconciliations = [];
   let auditEntries = [];
@@ -1450,6 +1451,56 @@
       '<section class="panel section-gap"><div class="section-title-row"><div><h3>تحليل مصروفات التشغيل حسب البند</h3><p class="panel-note">توزيع المصروفات المسجلة؛ الأرقام للمتابعة ولا تُنشئ قيودًا مالية.</p></div>'+badge(money((state.expenses||[]).reduce((sum,item)=>sum+amount(item.amount),0)),"gold")+'</div>'+(categories.length?'<div class="expense-category-bars">'+categories.map(item=>'<div class="expense-category-row"><div class="expense-category-label"><span>'+esc(item[0])+'</span><strong>'+money(item[1])+'</strong></div><div class="expense-category-track"><i style="width:'+Math.max(2,Math.round(item[1]/max*100))+'%"></i></div></div>').join("")+'</div>':empty("لا توجد مصروفات لتحليلها."))+'</section>';
   }
 
+  function aiContextSummary() {
+    const m=metrics();
+    return {
+      currency:"EGP",
+      asOf:today(),
+      sales:m.sales,
+      grossProfit:m.grossProfit,
+      operatingExpenses:m.expenses,
+      netOperatingResult:m.netProfit,
+      receivables:m.totalReceivables,
+      capitalDeposits:m.capitalIn,
+      capitalWithdrawals:m.capitalOut,
+      cashReconciliationDifferences:(cashReconciliations||[]).filter(item=>Math.abs(amount(item.cash_difference))>=0.01).length,
+      pendingEmployeeRequests:requests.filter(item=>item.status==="pending").length
+    };
+  }
+
+  function renderAiConversation() {
+    const host=$("aiChatHistory");
+    if(!host)return;
+    host.innerHTML=aiConversation.length?aiConversation.map(item=>'<div class="ai-message '+(item.role==="user"?"user":"assistant")+'"><strong>'+(item.role==="user"?"أنت":"مساعد IS Motors")+'</strong><p>'+esc(item.text).replace(/\n/g,"<br>")+'</p></div>').join(""):'<div class="ai-empty">اسأل عن صافي نتيجة النشاط أو المصروفات أو السيولة أو الملاحظات الرقابية. سيستخدم المساعد ملخصات مالية مجمعة فقط.</div>';
+    host.scrollTop=host.scrollHeight;
+  }
+
+  function renderAiAssistantPanel() {
+    return '<section class="panel section-gap ai-assistant-panel"><div class="section-title-row"><div><h3>المساعد الذكي للإدارة</h3><p class="panel-note">مساعد مدمج داخل لوحة الإدارة لتحليل الأرقام وتقديم اقتراحات عملية.</p></div>'+badge("خاص بالمدير","gold")+'</div><div id="aiChatHistory" class="ai-chat-history" aria-live="polite"></div><div class="ai-chat-compose"><textarea id="aiMessage" rows="2" maxlength="3000" placeholder="اكتب سؤالك عن الأداء المالي أو اطلب اقتراحًا إداريًا..."></textarea><button id="sendAiMessage" class="btn btn-primary" type="button" data-action="send-ai-message">إرسال</button></div><p class="panel-note">يُرسل إلى خدمة الذكاء الاصطناعي ملخص مالي مجمع دون أسماء العملاء أو أرقام الهواتف أو تفاصيل السجلات الفردية. المساعد يقدم توصيات ولا ينفذ أي تعديل.</p></section>';
+  }
+
+  async function sendAiMessage() {
+    const input=$("aiMessage"),button=$("sendAiMessage");
+    if(!input||!button)return;
+    const message=input.value.trim();
+    if(!message)return;
+    if(message.length>3000){toast("الرسالة طويلة جدًا.","error");return;}
+    aiConversation.push({role:"user",text:message});
+    input.value="";
+    renderAiConversation();
+    button.disabled=true;button.textContent="جارٍ التحليل...";
+    try{
+      const response=await fetch("/api/assistant",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(session&&session.access_token||"")},body:JSON.stringify({message,context:aiContextSummary()})});
+      const payload=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(payload.error||"تعذر الاتصال بالمساعد الذكي.");
+      aiConversation.push({role:"assistant",text:String(payload.answer||"لم يصل رد من المساعد.")});
+    }catch(error){
+      aiConversation.push({role:"assistant",text:"تعذر إتمام الطلب: "+(error.message||"خطأ غير معروف")});
+    }finally{
+      button.disabled=false;button.textContent="إرسال";renderAiConversation();
+    }
+  }
+
   function renderManagementPage() {
     const items=managementRecommendations();
     const urgent=items.filter(item=>item.level==="urgent").length;
@@ -1458,6 +1509,7 @@
     return heading("لوحة الإدارة","مركز متابعة إداري يجمع الرقابة المالية ومؤشرات الأداء وسجل المراجعة.",'<button class="btn btn-outline btn-small" data-action="print">طباعة لوحة الإدارة</button>')+
       '<div class="kpi-grid">'+kpi("صحة الإدارة",health.score+"/100",health.status,health.score>=90?"green":(health.score>=70?"gold":"red"))+kpi("توصيات عاجلة",urgent,"تحتاج مراجعة فورية",urgent?"red":"green")+kpi("بنود للمتابعة",follow,"تحتاج إجراء إداري",follow?"gold":"green")+kpi("أحداث سجل المراجعة",auditEntries.length,"آخر الأحداث المحمّلة","blue")+'</div>'+
       renderAdminHealthPanel()+
+      renderAiAssistantPanel()+
       renderManagementSuggestions(false)+
       '<section class="panel section-gap"><div class="section-title-row"><div><h3>آخر أحداث المراجعة</h3><p class="panel-note">تظل التفاصيل الكاملة محفوظة في سجل المراجعة.</p></div><button class="btn btn-outline btn-small" data-action="go-view" data-view="audit">فتح سجل المراجعة</button></div>'+
       (auditEntries.length?'<div class="summary-list">'+auditEntries.slice(0,5).map(item=>'<div class="summary-line"><span>'+esc(item.description||item.entity_type||"حدث إداري")+'<small class="sub-line">'+esc(item.entity_type||"")+'</small></span><strong>'+esc(item.created_at||"")+'</strong></div>').join("")+'</div>':empty("لا توجد أحداث مراجعة مسجلة بعد."))+'</section>';
@@ -2280,6 +2332,7 @@
     else if(action==="delete-request")await deleteRequest(btn.dataset.id);
     else if(action==="refresh-requests"){await loadRequests();render();toast("تم تحديث قائمة الطلبات.","success");}
     else if(action==="refresh-staff"){try{await loadStaff();render();toast("تم تحديث قائمة الموظفين.","success");}catch(error){toast("تعذر تحميل الموظفين: "+error.message,"error");}}
+    else if(action==="send-ai-message")await sendAiMessage();
     else if(action==="toggle-staff-access"){
       if(role!=="admin")return;
       const target=staffRows.find(item=>String(item.user_id)===String(btn.dataset.id));
