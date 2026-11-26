@@ -4,7 +4,7 @@ Single-codebase Arabic, right-to-left web application for the IS Motors dealersh
 
 ## Files
 - `index.html` — application shell and login screen
-- `styles.css` — responsive dark theme
+- `styles.css` — responsive light theme and mobile layout
 - `app.js` — Supabase authentication, role checks, database operations, reports and UI
 
 ## Connected backend
