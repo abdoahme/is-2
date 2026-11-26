@@ -801,3 +801,23 @@ button:disabled{opacity:.45;cursor:not-allowed;filter:grayscale(.15);transform:n
  .recommendation-card{align-items:flex-start;flex-direction:column;gap:10px;padding:12px}
  .recommendation-actions{width:100%;justify-content:space-between}
 }
+
+
+/* Phase 1 — management health and finance analysis */
+.health-score-row{display:flex;align-items:center;gap:18px;padding:16px 0;border-bottom:1px solid var(--line)}
+.health-score{width:94px;height:94px;flex:0 0 94px;border-radius:50%;display:grid;place-content:center;text-align:center;background:conic-gradient(var(--green) 0%,#e8edf3 0);border:7px solid #e8edf3;box-shadow:inset 0 0 0 1px #dce4ed}
+.health-score strong{font-size:27px;line-height:1.1;color:var(--text)}
+.health-score span{font-size:10px;color:var(--muted)}
+.health-score-copy strong{font-size:16px}
+.health-score-copy p{margin:5px 0 0;color:var(--muted);font-size:11px;line-height:1.8}
+.health-check-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;padding-top:14px}
+.health-check{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--line);border-radius:11px;padding:10px 12px;background:var(--panel2);font-size:11px;font-weight:800}
+.health-check small{display:block;color:var(--muted);font-weight:500;margin-top:3px}
+.expense-category-bars{display:grid;gap:13px}
+.expense-category-row{display:grid;gap:6px}
+.expense-category-label{display:flex;justify-content:space-between;gap:12px;font-size:11px}
+.expense-category-label span{color:var(--muted)}
+.expense-category-track{height:9px;border-radius:99px;background:#edf1f6;overflow:hidden}
+.expense-category-track i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#c49a58,#e1c48f)}
+@media(max-width:720px){.health-check-list{grid-template-columns:1fr}.health-score-row{align-items:flex-start}.health-score{width:78px;height:78px;flex-basis:78px}}
+@media print{.health-score-row,.health-check,.expense-category-track{break-inside:avoid}.health-score{print-color-adjust:exact;-webkit-print-color-adjust:exact}}
