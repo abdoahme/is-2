@@ -145,14 +145,16 @@
 
 ## 8. تصميم الواجهة في نسخة إعادة التصميم
 
-التعديل الحالي مخصص للعرض ولا يغيّر طريقة قراءة البيانات أو حفظها:
-- مظهر فاتح متناسق بخلفيات فاتحة وبطاقات بيضاء.
-- تباين أفضل للعناوين والبيانات والأرقام.
-- شريط تنقل أوضح مع تمييز الصفحة المختارة.
-- تحسين بطاقات المؤشرات المالية والأقسام والجداول.
-- تحسين حقول النماذج والنوافذ المنبثقة ورسائل الحالة.
-- مسافات وحواف وظلال متوازنة لتسهيل قراءة بيانات المعرض.
-- تخطيط متجاوب للشاشات الصغيرة مع احترام تفضيل تقليل الحركة.
+التعديلات مخصصة للعرض والتنقل ولا تغيّر طريقة قراءة البيانات أو حفظها:
+- واجهة فاتحة متناسقة بخلفيات فاتحة وبطاقات بيضاء.
+- إعادة تنظيم لوحة الإدارة في تخطيط ذي قائمة جانبية على الكمبيوتر.
+- تقسيم روابط التنقل إلى مجموعات: نظرة عامة، إدارة المعرض، الحسابات والشركاء، التقارير والنظام.
+- تتحول القائمة الجانبية إلى شريط أفقي قابل للتمرير على الأجهزة اللوحية والهواتف.
+- إبراز القسم الحالي بألوان وحالة اختيار واضحة مع رموز صغيرة.
+- مساحة محتوى مستقلة ومنظمة مع شريط ترحيب وبحث وتصدير.
+- عرض بطاقات السجلات في عمودين على الشاشات الواسعة وعمود واحد على الهاتف.
+- تحسين بطاقات المؤشرات المالية والأقسام والجداول وحقول النماذج والنوافذ المنبثقة.
+- احترام تفضيل تقليل الحركة ودعم اتجاه RTL العربي.
 
 ## 9. تشغيل المشروع وتطويره
 
@@ -180,7 +182,7 @@
 
 # 12. الكود المصدري الكامل
 
-> المحتوى التالي هو نسخة الملفات كما كانت في فرع `redesign/islam-al-fayed-interface` عند إعداد هذا المستند.
+> المحتوى التالي هو النسخة المحدثة للملفات الثلاثة كما كانت في فرع `redesign/islam-al-fayed-interface` عند تحديث هذا المستند.
 
 ## 12.1 `index.html`
 
@@ -240,37 +242,66 @@
       </div>
     </header>
 
-    <section class="welcome-strip">
-      <div>
-        <p class="eyebrow">لوحة التحكم</p>
-        <h1 id="pageTitle">الرئيسية</h1>
-        <p id="userLine" class="muted"></p>
-      </div>
-      <div class="welcome-actions">
-        <input id="globalSearch" class="search-input" type="search" placeholder="ابحث في الصفحة الحالية...">
-        <button id="exportBtn" class="btn btn-outline btn-small" type="button">تصدير CSV</button>
-      </div>
-    </section>
+    <div class="admin-layout">
+      <aside class="sidebar" aria-label="قائمة إدارة الموقع">
+        <div class="sidebar-heading">
+          <p class="eyebrow">WORKSPACE</p>
+          <strong>القائمة الرئيسية</strong>
+          <span>اختر القسم الذي تريد إدارته</span>
+        </div>
+        <nav id="mainNav" class="main-nav" aria-label="التنقل الرئيسي">
+          <div class="nav-group">
+            <span class="nav-group-title">نظرة عامة</span>
+            <button class="nav-btn active" data-view="overview"><span class="nav-symbol" aria-hidden="true">⌂</span><span>الرئيسية</span></button>
+          </div>
+          <div class="nav-group">
+            <span class="nav-group-title">إدارة المعرض</span>
+            <button class="nav-btn" data-view="cars"><span class="nav-symbol" aria-hidden="true">▣</span><span>السيارات</span></button>
+            <button class="nav-btn" data-view="expenses"><span class="nav-symbol" aria-hidden="true">↗</span><span>المصروفات</span></button>
+            <button class="nav-btn" data-view="receivables"><span class="nav-symbol" aria-hidden="true">◷</span><span>المبالغ المتبقية</span></button>
+          </div>
+          <div class="nav-group">
+            <span class="nav-group-title">الحسابات والشركاء</span>
+            <button class="nav-btn" data-view="debts"><span class="nav-symbol" aria-hidden="true">≋</span><span>الذمم والأقساط</span></button>
+            <button class="nav-btn" data-view="capital"><span class="nav-symbol" aria-hidden="true">＋</span><span>رأس المال والخزينة</span></button>
+            <button class="nav-btn" data-view="partners"><span class="nav-symbol" aria-hidden="true">⇄</span><span>حركة الشركاء</span></button>
+          </div>
+          <div class="nav-group">
+            <span class="nav-group-title">التقارير والنظام</span>
+            <button class="nav-btn" data-view="reports"><span class="nav-symbol" aria-hidden="true">▤</span><span>التقارير والتقفيل</span></button>
+            <button class="nav-btn" data-view="requests"><span class="nav-symbol" aria-hidden="true">◎</span><span>طلبات الموظفين</span></button>
+            <button class="nav-btn" data-view="settings"><span class="nav-symbol" aria-hidden="true">⚙</span><span>الإعدادات والروابط</span></button>
+          </div>
+        </nav>
+        <div class="sidebar-foot">
+          <span class="sidebar-foot-mark">IS</span>
+          <div><strong>IS Motors</strong><small>إدارة المعرض والحسابات</small></div>
+        </div>
+      </aside>
 
-    <nav id="mainNav" class="main-nav" aria-label="التنقل الرئيسي">
-      <button class="nav-btn active" data-view="overview">الرئيسية</button>
-      <button class="nav-btn" data-view="cars">السيارات</button>
-      <button class="nav-btn" data-view="expenses">المصروفات</button>
-      <button class="nav-btn" data-view="receivables">المبالغ المتبقية</button>
-      <button class="nav-btn" data-view="debts">الذمم والأقساط</button>
-      <button class="nav-btn" data-view="capital">رأس المال والخزينة</button>
-      <button class="nav-btn" data-view="partners">حركة الشركاء</button>
-      <button class="nav-btn" data-view="reports">التقارير والتقفيل</button>
-      <button class="nav-btn" data-view="requests">طلبات الموظفين</button>
-      <button class="nav-btn" data-view="settings">الإعدادات والروابط</button>
-    </nav>
+      <div class="workspace-main">
+        <section class="welcome-strip">
+          <div class="welcome-copy">
+            <p class="eyebrow">لوحة التحكم</p>
+            <h1 id="pageTitle">الرئيسية</h1>
+            <p id="userLine" class="muted"></p>
+          </div>
+          <div class="welcome-actions">
+            <label class="search-wrap">
+              <span class="search-symbol" aria-hidden="true">⌕</span>
+              <input id="globalSearch" class="search-input" type="search" placeholder="ابحث في الصفحة الحالية..." aria-label="ابحث في الصفحة الحالية">
+            </label>
+            <button id="exportBtn" class="btn btn-outline btn-small" type="button"><span aria-hidden="true">⇩</span> تصدير CSV</button>
+          </div>
+        </section>
 
-    <section id="mainContent" class="main-content" aria-live="polite"></section>
-    <footer class="app-footer">
-      <span>IS Motors — نظام الإدارة المالية</span>
-      <span>© 2026 Abdulrahman Ahmed Abdo</span>
-    </footer>
-  </main>
+        <section id="mainContent" class="main-content" aria-live="polite"></section>
+        <footer class="app-footer">
+          <span>IS Motors — نظام الإدارة المالية</span>
+          <span>© 2026 Abdulrahman Ahmed Abdo</span>
+        </footer>
+      </div>
+    </div>
 
   <main id="employeeShell" class="app-shell employee-shell" hidden>
     <header class="topbar">
@@ -666,6 +697,213 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 }
 @media(prefers-reduced-motion:reduce){
   *,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}
+}
+
+
+/* ==========================================================
+   IS Motors · Navigation and workspace layout refresh
+   ========================================================== */
+.app-shell{max-width:1600px;padding:0 28px 26px}
+.admin-layout{
+  display:grid;
+  grid-template-columns:252px minmax(0,1fr);
+  gap:22px;
+  align-items:start;
+  margin-top:22px;
+}
+.sidebar{
+  position:sticky;
+  top:18px;
+  min-width:0;
+  padding:16px 12px 12px;
+  border:1px solid #e4e9f1;
+  border-radius:19px;
+  background:linear-gradient(180deg,#fff 0%,#fbfcfe 100%);
+  box-shadow:0 8px 25px rgba(29,43,67,.055);
+}
+.sidebar-heading{padding:3px 9px 14px;border-bottom:1px solid #edf0f5}
+.sidebar-heading .eyebrow{font-size:9px;letter-spacing:1.6px;margin-bottom:4px}
+.sidebar-heading strong{display:block;color:#29384d;font-size:14px}
+.sidebar-heading>span{display:block;margin-top:3px;color:#8792a3;font-size:10px}
+.main-nav{
+  position:static;
+  display:flex;
+  flex-direction:column;
+  gap:13px;
+  margin:12px 0 0;
+  padding:0;
+  overflow:visible;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  box-shadow:none;
+}
+.nav-group{display:grid;gap:4px;min-width:0}
+.nav-group-title{
+  padding:0 10px 4px;
+  color:#9aa4b3;
+  font-size:9px;
+  font-weight:900;
+  letter-spacing:.35px;
+}
+.nav-btn{
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  gap:11px;
+  width:100%;
+  min-height:42px;
+  padding:7px 9px;
+  border:1px solid transparent;
+  border-radius:11px;
+  color:#637187;
+  text-align:right;
+  font-size:11px;
+  font-weight:800;
+  white-space:nowrap;
+}
+.nav-btn>span:last-child{overflow:hidden;text-overflow:ellipsis}
+.nav-symbol{
+  display:grid;
+  flex:0 0 29px;
+  width:29px;
+  height:29px;
+  place-items:center;
+  border:1px solid #e8edf3;
+  border-radius:9px;
+  background:#f7f9fc;
+  color:#8290a3;
+  font-size:16px;
+  line-height:1;
+}
+.nav-btn:hover{
+  border-color:#ece4d5;
+  background:#fcfaf6;
+  color:#805719;
+}
+.nav-btn:hover .nav-symbol{border-color:#eadfc9;background:#fbf6eb;color:#966a2a}
+.nav-btn.active{
+  border-color:#eadfc9;
+  background:linear-gradient(110deg,#f8f1e4,#fffaf1);
+  color:#785319;
+  box-shadow:0 3px 10px rgba(140,102,39,.055);
+}
+.nav-btn.active .nav-symbol{
+  border-color:#e9d9b8;
+  background:#f4e9d2;
+  color:#805719;
+}
+.sidebar-foot{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  margin-top:17px;
+  padding:12px 8px 3px;
+  border-top:1px solid #edf0f5;
+}
+.sidebar-foot-mark{
+  display:grid;
+  flex:0 0 31px;
+  width:31px;
+  height:31px;
+  place-items:center;
+  border:1px solid #eadfc9;
+  border-radius:9px;
+  background:#fbf6eb;
+  color:#875c1e;
+  font-size:13px;
+  font-weight:900;
+}
+.sidebar-foot strong{display:block;color:#44536a;font-size:10px}
+.sidebar-foot small{display:block;color:#97a1af;font-size:9px}
+.workspace-main{min-width:0}
+.workspace-main>.welcome-strip{
+  margin:0 0 18px;
+  min-height:116px;
+  padding:22px 24px;
+  border-radius:18px;
+}
+.workspace-main>.welcome-strip h1{font-size:25px}
+.search-wrap{
+  position:relative;
+  display:block;
+  min-width:min(300px,28vw);
+}
+.search-wrap .search-input{width:100%;padding-inline-start:38px}
+.search-symbol{
+  position:absolute;
+  top:50%;
+  inset-inline-start:12px;
+  transform:translateY(-50%);
+  color:#9aa5b4;
+  font-size:23px;
+  pointer-events:none;
+}
+.welcome-actions{gap:9px}
+.welcome-actions .btn{white-space:nowrap}
+.main-content{min-height:460px}
+.main-content>.page-heading{padding:2px 2px 0}
+.data-list{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:13px;
+  align-items:stretch;
+}
+.data-list>.data-card{height:100%;align-content:start}
+.data-list>.empty-state{grid-column:1/-1}
+.app-footer{margin-top:25px}
+@media(max-width:1180px){
+  .app-shell{padding-inline:20px}
+  .admin-layout{grid-template-columns:224px minmax(0,1fr);gap:16px}
+  .sidebar{padding:13px 9px 10px}
+  .nav-btn{gap:8px;padding:7px}
+  .workspace-main>.welcome-strip{padding:18px}
+  .search-wrap{min-width:min(250px,25vw)}
+}
+@media(max-width:920px){
+  .app-shell{padding-inline:16px}
+  .admin-layout{grid-template-columns:minmax(0,1fr);gap:14px;margin-top:14px}
+  .sidebar{position:relative;top:auto;padding:11px 10px 9px;border-radius:15px}
+  .sidebar-heading,.sidebar-foot{display:none}
+  .main-nav{
+    display:flex;
+    flex-direction:row;
+    align-items:stretch;
+    gap:6px;
+    margin:0;
+    overflow-x:auto;
+    padding:0 0 2px;
+    scrollbar-width:thin;
+  }
+  .nav-group{display:flex;flex:0 0 auto;gap:5px;align-items:center}
+  .nav-group-title{display:none}
+  .nav-btn{width:auto;min-height:40px;flex:0 0 auto;gap:7px;padding:6px 9px}
+  .nav-symbol{width:25px;height:25px;flex-basis:25px;font-size:14px}
+  .workspace-main>.welcome-strip{margin-bottom:14px}
+  .data-list{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:620px){
+  .app-shell{padding:0 11px 16px}
+  .topbar{min-height:64px}
+  .admin-layout{gap:10px}
+  .sidebar{padding:8px;border-radius:13px}
+  .nav-btn{min-height:37px;font-size:10px;padding:5px 8px}
+  .nav-symbol{width:23px;height:23px;flex-basis:23px;border-radius:7px}
+  .workspace-main>.welcome-strip{
+    min-height:0;
+    padding:15px;
+    gap:12px;
+    border-radius:15px;
+  }
+  .workspace-main>.welcome-strip h1{font-size:21px}
+  .welcome-actions{display:grid;grid-template-columns:minmax(0,1fr) auto;width:100%}
+  .search-wrap{min-width:0;width:100%}
+  .welcome-actions .btn{padding-inline:9px;font-size:10px}
+  .data-list{grid-template-columns:1fr;gap:10px}
+  .main-content{min-height:340px}
+}
+@media(prefers-reduced-motion:reduce){
+  .nav-btn,.data-card{transition:none}
 }
 
 ```
