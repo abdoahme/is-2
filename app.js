@@ -285,7 +285,7 @@
     }
     return amount(car.paidAmount);
   }
-  function carRemaining(car) { return Math.max(0, amount(car.salePrice) - carPaid(car)); }
+  function carRemaining(car) { return isSoldCar(car) ? Math.max(0, amount(car.salePrice) - carPaid(car)) : 0; }
   function debtRemaining(debt) { return Math.max(0, amount(debt.totalAmount) - amount(debt.paidAmount)); }
   function isSoldCar(car) {
     const soldStatuses = ["كاش","متبقي","تقسيط","مباع"];
@@ -574,6 +574,15 @@
     state.closings.audit = state.closings.audit.slice(0,200);
   }
 
+  function renderClosingAuditLog(period,key) {
+    const rows=(state.closings.audit || []).filter(entry=>entry.period===period && (!key || entry.key===key)).slice(0,8);
+    if(!rows.length) return "";
+    return '<section class="panel section-gap"><h3>سجل مراجعة التقفيل</h3><p class="panel-note">آخر عمليات الإغلاق وإعادة الفتح مع اسم المسؤول والسبب.</p><div class="summary-list">'+rows.map(entry=>{
+      const label=entry.action==="close"?"تقفيل":(entry.action==="reopen"?"إعادة فتح":"تعديل");
+      return '<div class="summary-line"><span>'+label+' · '+esc(entry.user||"غير محدد")+'<small class="sub-line">'+esc(entry.reason||"بدون سبب — عملية تقفيل")+'</small></span><strong>'+esc(entry.at||"")+'</strong></div>';
+    }).join("")+'</div></section>';
+  }
+
   function renderClosingSnapshot(snapshot) {
     if (!snapshot) return '<div class="empty-state">لا توجد لقطة رقمية محفوظة لهذا التقفيل القديم. ستظهر تفاصيل اللقطة عند إتمام تقفيل جديد.</div>';
     const lines = [
@@ -755,7 +764,8 @@
       '</div>'+
       '<section class="panel section-gap"><div class="section-title-row"><div><h3>كشف المراجعة المالية</h3><p class="panel-note">راجع كل المبالغ قبل اعتماد الإغلاق.</p></div>'+badge(locked?"لقطة ثابتة":"معاينة قبل التقفيل",locked?"ok":"gold")+'</div>'+renderClosingSnapshot(snapshot)+'</section>'+
       '<section class="panel section-gap"><div class="section-title-row"><div><h3>قائمة التحقق قبل الإقفال</h3><p class="panel-note">تُفحص الطلبات والسجلات التي لا تحمل تاريخًا.</p></div>'+action+'</div>'+blockers+'</section>'+
-      (locked?'<section class="panel section-gap"><h3>بيانات التقفيل</h3><div class="summary-list"><div class="summary-line"><span>نفّذ التقفيل</span><strong>'+esc(closure.closedBy||"غير مسجل")+'</strong></div><div class="summary-line"><span>وقت التقفيل</span><strong>'+esc(closure.closedAt||"غير متاح")+'</strong></div></div></section>':'');
+      (locked?'<section class="panel section-gap"><h3>بيانات التقفيل</h3><div class="summary-list"><div class="summary-line"><span>نفّذ التقفيل</span><strong>'+esc(closure.closedBy||"غير مسجل")+'</strong></div><div class="summary-line"><span>وقت التقفيل</span><strong>'+esc(closure.closedAt||"غير متاح")+'</strong></div></div></section>':'')+
+      renderClosingAuditLog("month",key);
   }
 
   function renderYearlyClosing() {
@@ -796,7 +806,8 @@
       '<div class="two-col section-gap"><section class="panel"><h3>حالة الأشهر ذات الحركة</h3><div class="summary-list">'+monthlyRows+'</div></section><section class="panel"><h3>شروط اعتماد السنة</h3>'+ (blockers.length?'<div class="closing-alert"><ul>'+blockers.map(x=>'<li>'+esc(x)+'</li>').join("")+'</ul></div>':'<div class="closing-ok">كل الأشهر ذات الحركات مقفلة، ولا توجد طلبات معلقة أو سجلات بلا تاريخ.</div>')+'<div class="section-gap">'+action+'</div></section></div>'+
       '<section class="panel section-gap"><h3>القائمة السنوية التفصيلية</h3>'+renderClosingSnapshot(snapshot)+'</section>'+
       previousText+
-      (locked?'<section class="panel section-gap"><h3>بيانات التقفيل السنوي</h3><div class="summary-list"><div class="summary-line"><span>نفّذ التقفيل</span><strong>'+esc(closure.closedBy||"غير مسجل")+'</strong></div><div class="summary-line"><span>وقت التقفيل</span><strong>'+esc(closure.closedAt||"غير متاح")+'</strong></div></div></section>':'');
+      (locked?'<section class="panel section-gap"><h3>بيانات التقفيل السنوي</h3><div class="summary-list"><div class="summary-line"><span>نفّذ التقفيل</span><strong>'+esc(closure.closedBy||"غير مسجل")+'</strong></div><div class="summary-line"><span>وقت التقفيل</span><strong>'+esc(closure.closedAt||"غير متاح")+'</strong></div></div></section>':'')+
+      renderClosingAuditLog("year",year);
   }
 
   function renderOverview() {
@@ -1343,8 +1354,19 @@
     else if (currentView==="capital") rows = state.capital.map(c=>({date:c.date,partner:c.partner,movementType:c.movementType,deposited:c.deposited,withdrawn:c.withdrawn,method:c.method,receiptNo:c.receiptNo,description:c.description}));
     else if (currentView==="requests") rows = requests.map(r=>({date:r.expense_date,description:r.description,amount:r.amount,status:r.status,created_at:r.created_at}));
     else if (currentView==="receivables") {
-      rows = state.cars.filter(c=>carRemaining(c)>0).map(c=>({customer:c.customer,vehicle:c.model,total:c.salePrice,paid:carPaid(c),remaining:carRemaining(c)}))
+      rows = state.cars.filter(c=>isSoldCar(c)&&carRemaining(c)>0).map(c=>({customer:c.customer,vehicle:c.model,total:c.salePrice,paid:carPaid(c),remaining:carRemaining(c)}))
         .concat(state.debts.filter(d=>String(d.nature||"").includes("لنا")&&debtRemaining(d)>0).map(d=>({customer:d.partyName,vehicle:d.description,total:d.totalAmount,paid:d.paidAmount,remaining:debtRemaining(d)})));
+    }
+    else if (currentView==="monthlyClosing") {
+      const key=closeYear+"-"+String(closeMonth).padStart(2,"0"),bounds=monthDateRange(key),closure=state.closings.months[key];
+      const snap=closure&&closure.snapshot?closure.snapshot:buildPeriodSnapshot(bounds.start,bounds.end,monthLabel(key));
+      rows=[["إيرادات البيع",snap.sales],["تكلفة السيارات المباعة",snap.soldCost],["مجمل الربح",snap.grossProfit],["مصروفات التشغيل",snap.operatingExpenses],["أرباح من أشخاص",snap.profitFromPeople],["خسائر لأشخاص",snap.lossToPeople],["صافي النتيجة",snap.netResult],["المتبقي المستحق",snap.totalReceivables]].map(x=>({البند:x[0],المبلغ:x[1]}));
+      filename="تقفيل-"+key+".csv";
+    }
+    else if (currentView==="yearlyClosing") {
+      const year=String(closeAnnualYear),closure=state.closings.annual[year],snap=closure&&closure.snapshot?closure.snapshot:buildPeriodSnapshot(year+"-01-01",year+"-12-31","السنة "+year);
+      rows=[["إيرادات السنة",snap.sales],["تكلفة السيارات المباعة",snap.soldCost],["مجمل الربح",snap.grossProfit],["مصروفات التشغيل",snap.operatingExpenses],["أرباح من أشخاص",snap.profitFromPeople],["خسائر لأشخاص",snap.lossToPeople],["صافي النتيجة السنوية",snap.netResult],["المتبقي المستحق",snap.totalReceivables]].map(x=>({البند:x[0],المبلغ:x[1]}));
+      filename="تقفيل-سنوي-"+year+".csv";
     } else { toast("افتح صفحة بيانات أولاً لتصديرها.","error"); return; }
     if (!rows.length) { toast("لا توجد بيانات للتصدير.","error"); return; }
     const keys = Object.keys(rows[0]);
