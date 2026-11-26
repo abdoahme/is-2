@@ -728,3 +728,57 @@ button:disabled{opacity:.45;cursor:not-allowed;filter:grayscale(.15);transform:n
   .closing-period-picker select{border:0;background:#fff}
   .closing-alert,.closing-ok{print-color-adjust:exact;-webkit-print-color-adjust:exact}
 }
+
+
+/* IS Motors · finance operations suite */
+.form-grid.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+.form-grid input[readonly]{background:#f3f6fa;color:#627189}
+.finance-breakdown .formula-detail pre,
+.formula-detail pre{
+  max-width:100%;
+  max-height:260px;
+  overflow:auto;
+  padding:9px;
+  border-radius:8px;
+  background:#f3f5f8;
+  color:#536176;
+  direction:ltr;
+  text-align:left;
+  white-space:pre-wrap;
+  overflow-wrap:anywhere;
+  font-size:9px;
+}
+.data-card .panel-note{line-height:1.8}
+#mainContent .closing-period-picker select,
+#mainContent .form-grid select{min-height:40px}
+#mainContent .data-cell strong{font-variant-numeric:tabular-nums}
+#mainContent .data-card .card-actions .btn-danger{margin-inline-start:0}
+#mainContent .data-card details{margin-top:6px}
+.audit-entry-pre{
+  max-height:280px;
+  overflow:auto;
+  direction:ltr;
+  text-align:left;
+  white-space:pre-wrap;
+  overflow-wrap:anywhere;
+}
+.cash-difference-positive{color:#16835a}
+.cash-difference-negative{color:#c2414e}
+.customer-statement-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+}
+.backup-meta{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  flex-wrap:wrap;
+}
+@media(max-width:720px){
+  .form-grid.three{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:520px){
+  .form-grid.three{grid-template-columns:1fr}
+}
