@@ -370,8 +370,7 @@
       }
       const hasAnyCollectionHistory=financialTransactions.some(tx=>String(tx.car_id||"")===String(car.id) && (tx.category==="car_collection" || (tx.category==="reversal" && ["car","car_collection","car_cash"].includes(tx.source_type))));
       const paid=financialTransactions.filter(tx=>String(tx.car_id||"")===String(car.id) &&
-        (tx.category==="car_collection" || (tx.category==="reversal" && ["car","car_collection","car_cash"].includes(tx.source_type))) &&
-        !reversed.has(String(tx.id))
+        (tx.category==="car_collection" || (tx.category==="reversal" && ["car","car_collection","car_cash"].includes(tx.source_type)))
       ).reduce((sum,tx)=>sum+(tx.direction==="inflow"?amount(tx.amount):-amount(tx.amount)),0);
       const remaining=Math.max(0,amount(car.salePrice)-paid);
       if(!previousAuto && !hasAnyCollectionHistory && remaining>0.005 && /^\d{4}-\d{2}-\d{2}$/.test(String(car.date||""))){
@@ -584,12 +583,10 @@
   function amount(value) { return num(value); }
   function carPaid(car) {
     if (financialLedgerLoaded && car && car.id) {
-      const reversed=new Set(financialTransactions.filter(t=>t.reversal_of).map(t=>String(t.reversal_of)));
-      return Math.max(0,financialTransactions.filter(t=>
-        String(t.car_id||"")===String(car.id) &&
-        (t.category==="car_collection" || (t.category==="reversal" && ["car","car_collection","car_cash"].includes(t.source_type))) &&
-        !reversed.has(String(t.id))
-      ).reduce((sum,t)=>sum+(t.direction==="inflow"?amount(t.amount):-amount(t.amount)),0));
+      return Math.max(0,financialTransactions.filter(tx=>
+        String(tx.car_id||"")===String(car.id) &&
+        (tx.category==="car_collection" || (tx.category==="reversal" && ["car","car_collection","car_cash"].includes(tx.source_type)))
+      ).reduce((sum,tx)=>sum+(tx.direction==="inflow"?amount(tx.amount):-amount(tx.amount)),0));
     }
     if (car.paidAmount === undefined || car.paidAmount === null || car.paidAmount === "") {
       return car.status === "كاش" ? amount(car.salePrice) : 0;
