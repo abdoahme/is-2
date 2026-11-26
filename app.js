@@ -91,7 +91,8 @@
       title:"السيارة",
       fields:[
         {key:"model",label:"بيان السيارة / الموديل",required:true},
-        {key:"date",label:"تاريخ الحركة",type:"date"},
+        {key:"date",label:"تاريخ الشراء",type:"date",required:true},
+        {key:"saleDate",label:"تاريخ البيع",type:"date",showWhen:{field:"status",value:"كاش"}},
         {key:"chassis",label:"رقم الشاسيه"},
         {key:"purchasePrice",label:"سعر الشراء",type:"number"},
         {key:"partnerName",label:"اسم الشريك المساهم (اختياري)"},
@@ -505,8 +506,8 @@
       const previousAuto=financialTransactions.find(tx=>String(tx.car_id||"")===String(car.id)&&tx.source_type==="car_cash"&&tx.category==="car_collection");
       if(previousAuto && !reversed.has(String(previousAuto.id))){
         output.push({
-          user_id:session.user.id,transaction_date:previousAuto.transaction_date,direction:previousAuto.direction,
-          category:previousAuto.category,payment_method:previousAuto.payment_method,amount:amount(previousAuto.amount),
+          user_id:session.user.id,transaction_date:car.saleDate||car.date,direction:previousAuto.direction,
+          category:previousAuto.category,payment_method:previousAuto.payment_method,amount:amount(car.salePrice),
           car_id:String(car.id),person_name:car.customer||"",description:previousAuto.description,
           source_type:"car_cash",source_id:String(car.id),is_legacy:false
         });
@@ -519,7 +520,7 @@
       const remaining=Math.max(0,amount(car.salePrice)-paid);
       if(!previousAuto && !hasAnyCollectionHistory && remaining>0.005 && /^\d{4}-\d{2}-\d{2}$/.test(String(car.date||""))){
         output.push({
-          user_id:session.user.id,transaction_date:car.date,direction:"inflow",category:"car_collection",
+          user_id:session.user.id,transaction_date:car.saleDate||car.date,direction:"inflow",category:"car_collection",
           payment_method:"cash",amount:remaining,car_id:String(car.id),person_name:car.customer||"",
           description:"تحصيل نقدي كامل حسب حالة السيارة كاش",source_type:"car_cash",
           source_id:String(car.id),is_legacy:false
@@ -1851,7 +1852,7 @@
   }
   function renderReports() {
     const allYears = Array.from(new Set(
-      [].concat(state.cars.map(x=>String(x.date||"").slice(0,4)),
+      [].concat(state.cars.map(x=>String((isSoldCar(x)?(x.saleDate||x.date):x.date)||"").slice(0,4)),
         state.expenses.map(x=>String(x.date||"").slice(0,4)),
         state.capital.map(x=>String(x.date||"").slice(0,4)),
         state.debts.map(x=>String(x.dueDate||x.date||"").slice(0,4)))
@@ -1869,7 +1870,7 @@
       if (reportMonth !== "ALL" && !date.startsWith(reportYear + "-" + String(reportMonth).padStart(2,"0"))) return false;
       return true;
     };
-    const cars = state.cars.filter(c=>inPeriod(c.date));
+    const cars = state.cars.filter(c=>inPeriod(isSoldCar(c)?(c.saleDate||c.date):c.date));
     const expenses = state.expenses.filter(e=>inPeriod(e.date));
     const debts = state.debts.filter(d=>inPeriod(d.date || d.dueDate));
     const capital = state.capital.filter(c=>inPeriod(c.date));
@@ -1889,7 +1890,7 @@
     if(reportYear!=="ALL"&&reportMonth!=="ALL"){
       const prevDate=new Date(Number(reportYear),Number(reportMonth)-2,1);
       const prevKey=prevDate.getFullYear()+"-"+String(prevDate.getMonth()+1).padStart(2,"0");
-      const prevCars=state.cars.filter(c=>String(c.date||"").startsWith(prevKey));
+      const prevCars=state.cars.filter(c=>String((isSoldCar(c)?(c.saleDate||c.date):c.date)||"").startsWith(prevKey));
       const prevSold=prevCars.filter(isSoldCar);
       const prevRevenue=prevSold.reduce((sum,c)=>sum+amount(c.salePrice),0);
       const prevCost=prevSold.reduce((sum,c)=>sum+amount(c.purchasePrice)+amount(c.prepCost),0);
@@ -1900,7 +1901,7 @@
       comparisonLabel="مقارنة بالشهر السابق ("+prevKey+")";
     }else if(reportYear!=="ALL"&&reportMonth==="ALL"){
       const prevYear=String(Number(reportYear)-1);
-      const prevCars=state.cars.filter(c=>String(c.date||"").startsWith(prevYear));
+      const prevCars=state.cars.filter(c=>String((isSoldCar(c)?(c.saleDate||c.date):c.date)||"").startsWith(prevYear));
       const prevSold=prevCars.filter(isSoldCar);
       const prevRevenue=prevSold.reduce((sum,c)=>sum+amount(c.salePrice),0);
       const prevCost=prevSold.reduce((sum,c)=>sum+amount(c.purchasePrice)+amount(c.prepCost),0);
@@ -2107,6 +2108,9 @@
     const data = {};
     schema.fields.forEach(field=>{
       const raw = form.get(field.key);
+      if(field.type==="number" && String(raw||"").trim()!=="" && !Number.isFinite(num(raw))){
+        throw new Error("قيمة رقمية غير صالحة في حقل "+field.label+".");
+      }
       data[field.key] = field.type==="number" ? num(raw) : String(raw || "").trim();
     });
     const originalRecord = editingId ? (state[collection] || []).find(item=>String(item.id)===String(editingId)) : null;
@@ -2180,9 +2184,14 @@
       toast("يجب أن يكون مبلغ المصروف أكبر من صفر.", "error");
       return;
     }
-    if (collection==="cars" && data.paidAmount > data.salePrice + 0.0001) {
-      toast("المبلغ المدفوع لا يمكن أن يتجاوز إجمالي سعر البيع.", "error");
-      return;
+    if (collection==="cars") {
+      if(amount(data.purchasePrice)<=0){toast("يجب إدخال سعر شراء صحيح وأكبر من صفر قبل حفظ السيارة.", "error");return;}
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(String(data.date||""))){toast("أدخل تاريخ شراء صحيحًا للسيارة.", "error");return;}
+      if(isSoldCar(data)){
+        if(amount(data.salePrice)<=0){toast("لا يمكن اعتماد بيع السيارة دون إدخال سعر بيع أكبر من صفر.", "error");return;}
+        if(!/^\d{4}-\d{2}-\d{2}$/.test(String(data.saleDate||""))){toast("أدخل تاريخ البيع الفعلي قبل اعتماد حالة البيع.", "error");return;}
+      }
+      if(data.paidAmount > data.salePrice + 0.0001){toast("المبلغ المدفوع لا يمكن أن يتجاوز إجمالي سعر البيع.", "error");return;}
     }
     if (collection==="cars" && amount(data.partnerSharePercent)>100) {
       toast("نسبة ربح الشريك لا يمكن أن تتجاوز 100%.", "error");
