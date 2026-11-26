@@ -710,10 +710,15 @@
     const cost=amount(car.purchasePrice)+amount(car.prepCost);
     const profit=amount(car.salePrice)-cost;
     const explicit=Number(car.partnerSharePercent);
-    const inferred=cost>0&&amount(car.partnerContribution)>0?Math.min(100,amount(car.partnerContribution)/cost*100):0;
-    const sharePercent=Number.isFinite(explicit)&&explicit>0?Math.min(100,explicit):inferred;
-    const partnerProfit=amount(car.partnerContribution)>0?profit*sharePercent/100:0;
-    return {cost,profit,sharePercent,partnerProfit,showroomProfit:profit-partnerProfit,showPartner:amount(car.partnerContribution)>0,inferred:!(Number.isFinite(explicit)&&explicit>0)};
+    const hasAgreedRate=Number.isFinite(explicit)&&explicit>0;
+    const sharePercent=hasAgreedRate?Math.min(100,explicit):0;
+    // Partner return is calculated on the partner's contributed capital, and only
+    // becomes available after a profitable sale. Never distribute more than this
+    // vehicle's realized gross profit.
+    const agreedReturn=amount(car.partnerContribution)*sharePercent/100;
+    const partnerProfit=amount(car.partnerContribution)>0&&hasAgreedRate&&isSoldCar(car)&&profit>0
+      ? Math.min(profit,agreedReturn) : 0;
+    return {cost,profit,sharePercent,partnerProfit,showroomProfit:profit-partnerProfit,showPartner:amount(car.partnerContribution)>0,inferred:false};
   }
 
   async function loadStaff() {
@@ -817,7 +822,7 @@
     const get = (name) => {
       const key = String(name || "").trim();
       if (!key) return null;
-      if (!balances.has(key)) balances.set(key, {partner:key, contributed:0, withdrawn:0});
+      if (!balances.has(key)) balances.set(key, {partner:key, contributed:0, profit:0, withdrawn:0});
       return balances.get(key);
     };
     movements.forEach((movement) => {
@@ -842,7 +847,14 @@
       item.contributed += Math.max(0, amount(entry.deposited));
       item.withdrawn += Math.max(0, amount(entry.withdrawn));
     });
-    return Array.from(balances.values()).map(item => Object.assign({},item,{balance:item.contributed-item.withdrawn})).sort((a,b)=>a.partner.localeCompare(b.partner,"ar"));
+    // Earned car profits are derived from sold, profitable vehicles; they are not
+    // persisted as movements, so re-rendering or reloading cannot accrue them twice.
+    (state.cars || []).forEach(car => {
+      const item = get(car.partnerName);
+      if (!item || amount(car.partnerContribution)<=0) return;
+      item.profit += carProfitDetails(car).partnerProfit;
+    });
+    return Array.from(balances.values()).map(item => Object.assign({},item,{balance:item.contributed+item.profit-item.withdrawn})).sort((a,b)=>a.partner.localeCompare(b.partner,"ar"));
   }
 
 
@@ -851,9 +863,9 @@
     const canWithdraw = active.some((item) => item.balance > 0);
     const action = '<button class="btn btn-primary btn-small" data-action="add-partner-payout"' +
       (canWithdraw ? '' : ' disabled') + '>+ سحب من رصيد شريك</button>';
-    return '<section class="panel section-gap"><div class="partner-balance-head"><div><h3>أرصدة الشركاء المتاحة</h3><p class="panel-note">الرصيد = مساهمات الشريك في السيارات ورأس المال ناقص دفعات السحب السابقة.</p></div><div class="page-actions">' + action + '</div></div>' +
+    return '<section class="panel section-gap"><div class="partner-balance-head"><div><h3>أرصدة الشركاء المتاحة</h3><p class="panel-note">الرصيد المتاح = رأس المال + أرباح السيارات المباعة والمربحة حسب النسبة المتفق عليها − المسحوبات. لا تُضاف الأرباح قبل إتمام بيع السيارة.</p></div><div class="page-actions">' + action + '</div></div>' +
       (active.length ? '<div class="summary-list">' + active.map((item) =>
-        '<div class="summary-line"><span>' + esc(item.partner) + ' · مساهمات ' + money(item.contributed) + ' · مسحوبات ' + money(item.withdrawn) + '</span><strong class="' +
+        '<div class="summary-line"><span>' + esc(item.partner) + ' · رأس المال ' + money(item.contributed) + ' · أرباح مستحقة ' + money(item.profit) + ' · مسحوبات ' + money(item.withdrawn) + '</span><strong class="' +
         (item.balance > 0 ? 'positive' : (item.balance < 0 ? 'negative' : '')) + '">' + money(item.balance) + '</strong></div>'
       ).join('') + '</div>' : empty("لم تُسجّل مساهمات شركاء بعد. أضف اسم الشريك ومبلغ مساهمته عند تسجيل شراء السيارة.")) +
       '</section>';
