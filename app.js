@@ -1143,7 +1143,7 @@
     const cards=rows.slice(0,100).map(t=>{
       const car=state.cars.find(c=>String(c.id)===String(t.car_id||""));
       const sign=t.direction==="inflow"?"+":"−";
-      return '<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">'+esc(transactionCategoryLabel(t.category))+'</div><div class="data-card-sub">'+dateText(t.transaction_date)+' · '+esc(t.person_name||"بدون اسم")+'</div></div>'+badge(t.direction==="inflow"?"وارد":"منصرف",t.direction==="inflow"?"ok":"warn")+'</div><div class="data-card-grid"><div class="data-cell"><span>القيمة</span><strong class="'+(t.direction==="inflow"?"positive":"negative")+'">'+sign+money(t.amount)+'</strong></div><div class="data-cell"><span>طريقة الدفع</span><strong>'+esc(paymentMethodLabel(t.payment_method))+'</strong></div><div class="data-cell"><span>السيارة</span><strong>'+esc(car?car.model:(t.car_id||"—"))+'</strong></div><div class="data-cell"><span>المرجع</span><strong>'+esc(t.reference||"—")+'</strong></div></div>'+(t.is_legacy?'<p class="panel-note">رصيد مرحّل من السجلات السابقة؛ تاريخ الدفعة الأصلي غير متاح.</p>':"")+'</article>';
+      return '<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">'+esc(transactionCategoryLabel(t.category))+'</div><div class="data-card-sub">'+dateText(t.transaction_date)+' · '+esc(t.person_name||"بدون اسم")+'</div></div>'+badge(t.direction==="inflow"?"وارد":"منصرف",t.direction==="inflow"?"ok":"warn")+'</div><div class="data-card-grid"><div class="data-cell"><span>القيمة</span><strong class="'+(t.direction==="inflow"?"positive":"negative")+'">'+sign+money(t.amount)+'</strong></div><div class="data-cell"><span>طريقة الدفع</span><strong>'+esc(paymentMethodLabel(t.payment_method))+'</strong></div><div class="data-cell"><span>السيارة</span><strong>'+esc(car?car.model:(t.car_id||"—"))+'</strong></div><div class="data-cell"><span>المرجع</span><strong>'+esc(t.reference||"—")+'</strong></div></div>'+(t.is_legacy?'<p class="panel-note">رصيد مرحّل من السجلات السابقة؛ تاريخ الدفعة الأصلي غير متاح.</p>':"")+'<div class="card-actions">'+(!t.reversal_of&&!financialTransactions.some(row=>String(row.reversal_of||"")===String(t.id))?'<button class="btn btn-danger btn-small" data-action="reverse-financial-transaction" data-id="'+esc(t.id)+'">عكس الحركة بسبب موثّق</button>':(t.reversal_of?badge("قيد عكسي","warn"):""))+'</div></article>';
     }).join("");
     return heading("دفتر الحركة والخزينة","دفتر موحد للمقبوضات والمدفوعات مع الاحتفاظ بالأثر التاريخي.",'<button class="btn btn-primary btn-small" data-action="add-financial-transaction">+ تسجيل حركة</button>')+
       '<div class="kpi-grid">'+kpi("الوارد خلال الشهر",money(inflow),"من أول الشهر","green")+kpi("المنصرف خلال الشهر",money(outflow),"من أول الشهر","red")+kpi("صافي الحركة",money(inflow-outflow),"الوارد ناقص المنصرف",inflow>=outflow?"blue":"red")+kpi("عدد الحركات",monthRows.length,"حركة خلال الشهر","gold")+'</div>'+
@@ -1225,17 +1225,24 @@
 
   function renderReminders() {
     const now=today();
-    const due=(state.debts||[]).filter(item=>debtRemaining(item)>0&&item.dueDate).map(item=>{
+    const debtDue=(state.debts||[]).filter(item=>debtRemaining(item)>0&&item.dueDate).map(item=>{
       const days=Math.round((new Date(item.dueDate+"T00:00:00")-new Date(now+"T00:00:00"))/86400000);
-      return Object.assign({days},item);
-    }).sort((a,b)=>a.days-b.days);
+      return Object.assign({days,kind:"debt"},item);
+    });
+    const carDue=(state.cars||[]).filter(car=>isSoldCar(car)&&carRemaining(car)>0&&car.nextDueDate).map(car=>{
+      const days=Math.round((new Date(car.nextDueDate+"T00:00:00")-new Date(now+"T00:00:00"))/86400000);
+      return {id:car.id,kind:"car",partyName:car.customer||"عميل غير محدد",description:car.model||"سيارة",dueDate:car.nextDueDate,totalAmount:car.salePrice,paidAmount:carPaid(car),remaining:carRemaining(car),phone:car.phone,days};
+    });
+    const due=debtDue.concat(carDue).sort((a,b)=>a.days-b.days);
     const overdue=due.filter(item=>item.days<0);
     const soon=due.filter(item=>item.days>=0&&item.days<=7);
     const later=due.filter(item=>item.days>7);
-    const renderList=list=>list.length?'<div class="data-list">'+list.map(item=>
-      '<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">'+esc(item.partyName||"جهة غير محددة")+'</div><div class="data-card-sub">'+esc(item.description||"ذمة / قسط")+' · '+dateText(item.dueDate)+'</div></div>'+badge(item.days<0?"متأخر "+Math.abs(item.days)+" يوم":(item.days===0?"مستحق اليوم":"خلال "+item.days+" يوم"),item.days<0?"warn":"gold")+'</div><div class="data-card-grid"><div class="data-cell"><span>إجمالي الذمة</span><strong>'+money(item.totalAmount)+'</strong></div><div class="data-cell"><span>المسدد</span><strong class="positive">'+money(item.paidAmount)+'</strong></div><div class="data-cell"><span>المتبقي</span><strong class="negative">'+money(debtRemaining(item))+'</strong></div><div class="data-cell"><span>الهاتف</span><strong>'+esc(item.phone||"—")+'</strong></div></div><div class="card-actions"><button class="btn btn-outline btn-small" data-action="edit" data-collection="debts" data-id="'+esc(item.id)+'">فتح الذمة</button></div></article>'
-    ).join("")+'</div>':empty("لا توجد استحقاقات في هذه المجموعة.");
-    const withoutDue=(state.cars||[]).filter(car=>isSoldCar(car)&&carRemaining(car)>0);
+    const renderList=list=>list.length?'<div class="data-list">'+list.map(item=>{
+      const remaining=item.kind==="car"?carRemaining(item):debtRemaining(item);
+      const collection=item.kind==="car"?"cars":"debts";
+      return '<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">'+esc(item.partyName||"جهة غير محددة")+'</div><div class="data-card-sub">'+esc(item.description||"ذمة / قسط")+' · '+dateText(item.dueDate)+' · '+(item.kind==="car"?"قسط سيارة":"ذمة")+'</div></div>'+badge(item.days<0?"متأخر "+Math.abs(item.days)+" يوم":(item.days===0?"مستحق اليوم":"خلال "+item.days+" يوم"),item.days<0?"warn":"gold")+'</div><div class="data-card-grid"><div class="data-cell"><span>الإجمالي</span><strong>'+money(item.totalAmount)+'</strong></div><div class="data-cell"><span>المسدد</span><strong class="positive">'+money(item.kind==="car"?carPaid(item):item.paidAmount)+'</strong></div><div class="data-cell"><span>المتبقي</span><strong class="negative">'+money(remaining)+'</strong></div><div class="data-cell"><span>الهاتف</span><strong>'+esc(item.phone||"—")+'</strong></div></div><div class="card-actions"><button class="btn btn-outline btn-small" data-action="edit" data-collection="'+collection+'" data-id="'+esc(item.id)+'">فتح السجل</button></div></article>';
+    }).join("")+'</div>':empty("لا توجد استحقاقات في هذه المجموعة.");
+    const withoutDue=(state.cars||[]).filter(car=>isSoldCar(car)&&carRemaining(car)>0&&!car.nextDueDate);
     return heading("التنبيهات والاستحقاقات","الأقساط المتأخرة والقريبة، والأرصدة التي لا تحتوي على تاريخ استحقاق.",'<button class="btn btn-outline btn-small" data-action="print">طباعة</button>')+
       '<div class="kpi-grid">'+kpi("أقساط متأخرة",overdue.length,"تجاوزت موعدها","red")+kpi("مستحقة خلال 7 أيام",soon.length,"تحتاج متابعة","gold")+kpi("مواعيد لاحقة",later.length,"بعد أكثر من أسبوع","blue")+kpi("أرصدة بلا موعد",withoutDue.length,"تحتاج جدولة","")+'</div>'+
       '<section class="panel section-gap"><h3>متأخرة عن موعدها</h3>'+renderList(overdue)+'</section>'+
@@ -1930,7 +1937,30 @@
       rows = state.cars.filter(c=>isSoldCar(c)&&carRemaining(c)>0).map(c=>({customer:c.customer,vehicle:c.model,total:c.salePrice,paid:carPaid(c),remaining:carRemaining(c)}))
         .concat(state.debts.filter(d=>String(d.nature||"").includes("لنا")&&debtRemaining(d)>0).map(d=>({customer:d.partyName,vehicle:d.description,total:d.totalAmount,paid:d.paidAmount,remaining:debtRemaining(d)})));
     }
-    else if (currentView==="monthlyClosing") {
+    else if(currentView==="cashbook") rows=financialTransactions.map(tx=>({
+      date:tx.transaction_date,direction:tx.direction==="inflow"?"وارد":"منصرف",
+      category:transactionCategoryLabel(tx.category),paymentMethod:paymentMethodLabel(tx.payment_method),
+      amount:tx.amount,vehicle:state.cars.find(car=>String(car.id)===String(tx.car_id||""))?.model||"",
+      customer:tx.person_name||"",reference:tx.reference||"",legacy:tx.is_legacy?"ترحيل قديم":"جديد"
+    }));
+    else if(currentView==="inventory") rows=state.cars.map(car=>({
+      date:car.date,vehicle:car.model,status:car.status,purchase:car.purchasePrice,prep:car.prepCost,
+      supplierPaid:carAcquisitionPaid(car.id),sale:car.salePrice,paid:carPaid(car),remaining:carRemaining(car),
+      profit:carProfitDetails(car).profit,partner:car.partnerName,partnerShare:carProfitDetails(car).partnerProfit
+    }));
+    else if(currentView==="customers") rows=customerGroups().map(customer=>({
+      customer:customer.name,cars:customer.cars.length,sales:customer.sales,paid:customer.paid,
+      remaining:customer.remaining,debtsReceivable:customer.debtReceivable,debtsPayable:customer.debtPayable
+    }));
+    else if(currentView==="reminders") rows=(state.debts||[]).filter(item=>debtRemaining(item)>0&&item.dueDate).map(item=>({
+      party:item.partyName,description:item.description,dueDate:item.dueDate,remaining:debtRemaining(item),phone:item.phone
+    })).concat((state.cars||[]).filter(car=>isSoldCar(car)&&carRemaining(car)>0&&car.nextDueDate).map(car=>({
+      party:car.customer,description:car.model,dueDate:car.nextDueDate,remaining:carRemaining(car),phone:car.phone
+    })));
+    else if(currentView==="audit") rows=auditEntries.map(item=>({
+      date:item.created_at,event:item.event_type,entity:item.entity_type,id:item.entity_id,description:item.description
+    }));
+    else if(currentView==="monthlyClosing") {
       const key=closeYear+"-"+String(closeMonth).padStart(2,"0"),bounds=monthDateRange(key),closure=state.closings.months[key];
       if (closure && !closure.snapshot) { toast("هذا التقفيل القديم لا يحتوي على لقطة محفوظة يمكن تصديرها كمرجع تاريخي.","error"); return; }
       const snap=closure?closure.snapshot:buildPeriodSnapshot(bounds.start,bounds.end,monthLabel(key));
