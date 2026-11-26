@@ -44,7 +44,7 @@
     capital:"رأس المال والخزينة", partners:"حركة الشركاء",
     cashbook:"دفتر الحركة والخزينة", inventory:"مخزون السيارات والأرباح",
     customers:"حسابات العملاء", reminders:"التنبيهات والاستحقاقات",
-    audit:"سجل المراجعة", backups:"النسخ الاحتياطي",
+    audit:"سجل المراجعة", backups:"النسخ الاحتياطي", management:"اقتراحات الإدارة",
     reports:"التقارير والتقفيل", monthlyClosing:"التقفيل الشهري",
     yearlyClosing:"التقفيل السنوي", requests:"طلبات الموظفين", settings:"الإعدادات والروابط"
   };
@@ -1384,6 +1384,53 @@
     }catch(error){toast("تعذر إنشاء النسخة: "+error.message,"error");}
   }
 
+
+  function managementRecommendations() {
+    const current=today();
+    const recommendations=[];
+    const overdueDebts=(state.debts||[]).filter(item=>debtRemaining(item)>0&&item.dueDate&&item.dueDate<current);
+    const overdueCars=(state.cars||[]).filter(car=>isSoldCar(car)&&carRemaining(car)>0&&car.nextDueDate&&car.nextDueDate<current);
+    const dueSoonDebts=(state.debts||[]).filter(item=>debtRemaining(item)>0&&item.dueDate&&item.dueDate>=current&&item.dueDate<=new Date(Date.now()+7*86400000).toISOString().slice(0,10));
+    const dueSoonCars=(state.cars||[]).filter(car=>isSoldCar(car)&&carRemaining(car)>0&&car.nextDueDate&&car.nextDueDate>=current&&car.nextDueDate<=new Date(Date.now()+7*86400000).toISOString().slice(0,10));
+    const withoutDue=(state.cars||[]).filter(car=>isSoldCar(car)&&carRemaining(car)>0&&!car.nextDueDate);
+    const agedStock=(state.cars||[]).filter(car=>!isSoldCar(car)&&car.date&&Math.floor((new Date(current+"T00:00:00")-new Date(car.date+"T00:00:00"))/86400000)>=60);
+    const pending=requests.filter(item=>item.status==="pending");
+    const unreconciledDates=Array.from(new Set((financialTransactions||[]).filter(tx=>tx.payment_method==="cash"&&tx.transaction_date<current).map(tx=>tx.transaction_date)))
+      .filter(date=>!(cashReconciliations||[]).some(item=>item.reconciliation_date===date));
+    const partnerAgreementMissing=(state.cars||[]).filter(car=>amount(car.partnerContribution)>0&&!(Number(car.partnerSharePercent)>0));
+    const cashDifferences=(cashReconciliations||[]).filter(item=>Math.abs(amount(item.cash_difference))>=0.01);
+    if(overdueDebts.length+overdueCars.length) recommendations.push({level:"urgent",title:"متابعة الأقساط المتأخرة",detail:"يوجد "+(overdueDebts.length+overdueCars.length)+" استحقاق متأخر يحتاج التواصل مع العميل وتحديث التحصيل.",view:"reminders",action:"فتح الاستحقاقات"});
+    if(unreconciledDates.length) recommendations.push({level:"urgent",title:"استكمال مطابقة الخزينة",detail:"هناك "+unreconciledDates.length+" يوم سابق به حركة نقدية دون مطابقة. راجع النقدية الفعلية وسجّل المطابقة.",view:"cashbook",action:"فتح دفتر الخزينة"});
+    if(dueSoonDebts.length+dueSoonCars.length) recommendations.push({level:"warning",title:"استحقاقات خلال 7 أيام",detail:"يوجد "+(dueSoonDebts.length+dueSoonCars.length)+" قسط أو ذمة يقترب موعدها؛ تواصل مع العملاء قبل موعد الاستحقاق.",view:"reminders",action:"مراجعة الأقساط"});
+    if(withoutDue.length) recommendations.push({level:"warning",title:"جدولة المبالغ المتبقية",detail:"يوجد "+withoutDue.length+" سيارة مباعة عليها رصيد دون تاريخ قسط قادم. أضف موعداً واضحاً للمتابعة.",view:"reminders",action:"مراجعة الأرصدة"});
+    if(pending.length) recommendations.push({level:"warning",title:"طلبات الموظفين المعلقة",detail:"يوجد "+pending.length+" طلب مصروف لم تتم مراجعته واعتماده أو رفضه.",view:"requests",action:"مراجعة الطلبات"});
+    if(agedStock.length) recommendations.push({level:"warning",title:"تنشيط السيارات بطيئة الحركة",detail:"يوجد "+agedStock.length+" سيارة في المخزون تجاوز بقاؤها 60 يوماً؛ راجع التسعير والتسويق وتكلفة الاحتفاظ.",view:"inventory",action:"مراجعة المخزون"});
+    if(partnerAgreementMissing.length) recommendations.push({level:"info",title:"تأكيد نسب أرباح الشركاء",detail:"يوجد "+partnerAgreementMissing.length+" سيارة بها مساهمة شريك دون إدخال نسبة ربح متفق عليها؛ النسبة الحالية المعروضة تقديرية حسب التمويل.",view:"inventory",action:"مراجعة حصص الشركاء"});
+    if(cashDifferences.length) recommendations.push({level:"warning",title:"مراجعة فروق جرد الخزينة",detail:"تم تسجيل فروق في "+cashDifferences.length+" مطابقة خزينة. راجع أسباب الفروق وسجّل التسويات الموثقة.",view:"cashbook",action:"مراجعة المطابقات"});
+    if(!recommendations.length) recommendations.push({level:"good",title:"لا توجد تنبيهات إدارية حالية",detail:"المؤشرات الحالية لا تُظهر استحقاقات متأخرة أو طلبات معلقة أو فروقاً مسجلة. استمر في المطابقة اليومية ومراجعة المخزون.",view:"cashbook",action:"مراجعة الخزينة"});
+    return recommendations;
+  }
+
+  function renderManagementSuggestions(compact) {
+    const items=managementRecommendations();
+    const shown=compact?items.slice(0,4):items;
+    const cards=shown.map(item=>
+      '<article class="recommendation-card '+esc(item.level)+'"><div class="recommendation-copy"><div class="recommendation-title">'+esc(item.title)+'</div><p>'+esc(item.detail)+'</p></div><div class="recommendation-actions">'+badge(item.level==="urgent"?"أولوية عاجلة":(item.level==="warning"?"يحتاج متابعة":(item.level==="good"?"مستقر":"اقتراح إداري")),item.level==="urgent"||item.level==="warning"?"warn":"gold")+'<button class="btn btn-outline btn-small" data-action="go-view" data-view="'+esc(item.view)+'">'+esc(item.action)+'</button></div></article>'
+    ).join("");
+    return '<section class="panel section-gap management-recommendations"><div class="section-title-row"><div><h3>اقتراحات الإدارة</h3><p class="panel-note">توصيات تلقائية مبنية على البيانات المسجلة، وليست قرارات تنفذ دون مراجعتك.</p></div>'+badge(items.length+" توصية","gold")+'</div><div class="recommendation-list">'+cards+'</div>'+(compact&&items.length>4?'<div class="page-actions section-gap"><button class="btn btn-outline btn-small" data-action="go-view" data-view="management">عرض كل الاقتراحات</button></div>':"")+'</section>';
+  }
+
+  function renderManagementPage() {
+    const items=managementRecommendations();
+    const urgent=items.filter(item=>item.level==="urgent").length;
+    const follow=items.filter(item=>item.level==="warning").length;
+    return heading("لوحة الإدارة","مركز متابعة إداري يجمع سجل المراجعة والاقتراحات المبنية على حركة المعرض.")+
+      '<div class="kpi-grid">'+kpi("توصيات عاجلة",urgent,"تحتاج مراجعة فورية",urgent?"red":"green")+kpi("بنود للمتابعة",follow,"تحتاج إجراء إداري",follow?"gold":"green")+kpi("أحداث سجل المراجعة",auditEntries.length,"آخر الأحداث المحمّلة","blue")+'</div>'+
+      renderManagementSuggestions(false)+
+      '<section class="panel section-gap"><div class="section-title-row"><div><h3>آخر أحداث المراجعة</h3><p class="panel-note">تظل التفاصيل الكاملة محفوظة في سجل المراجعة.</p></div><button class="btn btn-outline btn-small" data-action="go-view" data-view="audit">فتح سجل المراجعة</button></div>'+
+      (auditEntries.length?'<div class="summary-list">'+auditEntries.slice(0,5).map(item=>'<div class="summary-line"><span>'+esc(item.description||item.entity_type||"حدث إداري")+'<small class="sub-line">'+esc(item.entity_type||"")+'</small></span><strong>'+esc(item.created_at||"")+'</strong></div>').join("")+'</div>':empty("لا توجد أحداث مراجعة مسجلة بعد."))+'</section>';
+  }
+
   function renderOverview() {
     const m = metrics();
     const recent = (state.cars || []).slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))).slice(0,4);
@@ -1421,6 +1468,7 @@
       '</div>' +
       '<div class="dashboard-info-strip"><span>عدد السيارات: <b>' + m.cars + '</b></span><span>سيارات قيد البيع: <b>' + m.inventory + '</b></span><span>السيارات المباعة: <b>' + m.sold + '</b></span><span>تكلفة إجمالي السيارات المسجلة: <b>' + money(m.purchase) + '</b></span></div>' +
       dashboardDetails +
+      renderManagementSuggestions(true) +
       '<div class="two-col section-gap"><section class="panel"><h3>أحدث السيارات المسجلة</h3>' +
       (recent.length ? listMarkup(recent,carCard,"لا توجد سيارات مسجلة.") : empty("لا توجد سيارات مسجلة.")) +
       '</section><section class="panel"><h3>أعلى المصروفات المسجلة</h3>' +
@@ -1597,6 +1645,7 @@
     else if (currentView === "reminders") host.innerHTML = renderReminders();
     else if (currentView === "audit") host.innerHTML = renderAudit();
     else if (currentView === "backups") host.innerHTML = renderBackups();
+    else if (currentView === "management") host.innerHTML = renderManagementPage();
     else if (currentView === "reports") host.innerHTML = renderReports();
     else if (currentView === "monthlyClosing") host.innerHTML = renderMonthlyClosing();
     else if (currentView === "yearlyClosing") host.innerHTML = renderYearlyClosing();
@@ -2139,6 +2188,12 @@
     else if(action==="customer-statement"){selectedCustomer=btn.dataset.customer||"";currentView="customers";render();}
     else if(action==="customer-back"){selectedCustomer="";render();}
     else if(action==="save-reconciliation")await saveCashReconciliation();
+    else if(action==="go-view"){
+      if(role!=="admin")return;
+      currentView=btn.dataset.view||"overview";
+      $("globalSearch").value="";
+      render();
+    }
     else if(action==="refresh-audit"){
       const audit=await db.from("audit_logs").select("id,created_at,event_type,entity_type,entity_id,description,before_data,after_data").eq("user_id",session.user.id).order("created_at",{ascending:false}).limit(150);
       if(audit.error)toast("تعذر تحديث سجل المراجعة: "+audit.error.message,"error");
