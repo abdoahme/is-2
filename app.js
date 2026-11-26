@@ -1511,7 +1511,7 @@
 
   function renderBackups() {
     const rows=backupEntries.slice(0,60);
-    const labels={daily:"تلقائية",manual:"يدوية",migration_baseline:"قبل التطوير",before_restore:"قبل الاستعادة"};
+    const labels={daily:"تلقائية",manual:"يدوية",migration_baseline:"قبل التطوير",before_restore:"قبل الاستعادة",before_reset:"قبل إعادة الضبط"};
     const cards=rows.map(item=>
       '<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">'+esc(item.label||"نسخة احتياطية")+'</div><div class="data-card-sub">'+esc(item.created_at||"")+'</div></div>'+badge(labels[item.backup_type]||item.backup_type,"gold")+'</div><div class="card-actions"><button class="btn btn-outline btn-small" data-action="restore-backup" data-id="'+esc(item.id)+'">استعادة النسخة</button></div></article>'
     ).join("");
