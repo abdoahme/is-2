@@ -187,6 +187,7 @@
     setSync("تحميل البيانات", "busy");
     const result = await db.from("app_records")
       .select("id,payload,updated_at")
+      .eq("user_id", session.user.id)
       .eq("record_type", "settings")
       .eq("record_key", "main")
       .maybeSingle();
