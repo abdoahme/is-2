@@ -1,0 +1,11 @@
+{
+  "name": "IS Motors | نظام الإدارة والحسابات",
+  "short_name": "IS Motors",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f4f6fa",
+  "theme_color": "#f4f6fa",
+  "lang": "ar",
+  "dir": "rtl"
+}

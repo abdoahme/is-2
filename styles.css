@@ -868,3 +868,22 @@ button:disabled{opacity:.45;cursor:not-allowed;filter:grayscale(.15);transform:n
   body.print-receipt-mode .receipt-sheet{max-width:none;padding:14mm}
   body.print-receipt-mode .brand-mark{box-shadow:none}
 }
+
+/* Admin notifications and Android Web Push */
+.topbar{position:relative}
+.notification-bell{position:relative;border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:12px;width:42px;height:42px;font-size:21px}
+.notification-bell span{position:absolute;top:-6px;left:-6px;min-width:18px;height:18px;padding:0 4px;border-radius:20px;background:var(--red);color:#fff;font-size:10px;display:grid;place-items:center}
+.notification-bell span[hidden]{display:none}
+.notifications-panel{position:absolute;z-index:1000;top:58px;left:18px;width:min(420px,calc(100vw - 32px));max-height:min(72vh,620px);overflow:auto;padding:14px;border:1px solid var(--line);border-radius:18px;background:var(--panel);box-shadow:var(--shadow);color:var(--text)}
+.notification-panel-head,.notification-item-head,.notification-panel-actions{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.notification-panel-head{padding-bottom:10px;border-bottom:1px solid var(--line)}
+.notification-panel-actions{align-items:flex-start;flex-direction:column;padding:12px 0}
+.notification-panel-actions span{font-size:11px}
+.notification-list{display:grid;gap:8px}
+.notification-item{padding:11px;border:1px solid var(--line);border-radius:12px;background:var(--panel2)}
+.notification-item.is-unread{border-inline-start:3px solid var(--gold)}
+.notification-item-head strong{font-size:13px}
+.notification-item-head span{font-size:10px;color:var(--muted)}
+.notification-item p{font-size:12px;line-height:1.7;margin:6px 0}
+.notification-empty{padding:22px;text-align:center}
+@media(max-width:640px){.notifications-panel{position:fixed;top:72px;left:10px;right:10px;width:auto}.notification-panel-actions{align-items:stretch}}

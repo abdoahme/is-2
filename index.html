@@ -10,6 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./styles.css">
+  <link rel="manifest" href="./manifest.webmanifest">
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.2"></script>
   <script defer src="./app.js"></script>
 </head>
@@ -48,6 +49,8 @@
       </div>
       <div class="top-actions">
         <span id="syncBadge" class="sync-badge">● متصل</span>
+        <button id="notificationsBtn" class="notification-bell" type="button" aria-label="الإشعارات" title="الإشعارات">♧<span id="notificationsCount" hidden>0</span></button>
+        <section id="notificationsPanel" class="notifications-panel" hidden aria-label="قائمة الإشعارات"></section>
         <span id="roleBadge" class="role-badge"></span>
         <button id="logoutBtn" class="btn btn-ghost btn-small" type="button">خروج</button>
       </div>
