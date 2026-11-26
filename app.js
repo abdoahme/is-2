@@ -258,7 +258,7 @@
     box.textContent = message;
     box.className = "toast show " + (type || "");
     if(type==="error" && role==="admin" && session && typeof reportSystemIssue==="function") {
-      const safeMessage=String(message||"خطأ غير محدد").replace(/https?:\\/\\/\\S+/g,"[رابط مخفي]").slice(0,350);
+      const safeMessage=String(message||"خطأ غير محدد").replace(/https?:\/\/\S+/g,"[رابط مخفي]").slice(0,350);
       reportSystemIssue("error","خطأ أثناء تنفيذ عملية",safeMessage,"handled-error:"+safeMessage);
     }
     clearTimeout(toastTimer);
