@@ -53,36 +53,77 @@
       </div>
     </header>
 
-    <section class="welcome-strip">
-      <div>
-        <p class="eyebrow">لوحة التحكم</p>
-        <h1 id="pageTitle">الرئيسية</h1>
-        <p id="userLine" class="muted"></p>
-      </div>
-      <div class="welcome-actions">
-        <input id="globalSearch" class="search-input" type="search" placeholder="ابحث في الصفحة الحالية...">
-        <button id="exportBtn" class="btn btn-outline btn-small" type="button">تصدير CSV</button>
-      </div>
-    </section>
+    <div class="admin-layout">
+      <aside class="sidebar" aria-label="قائمة إدارة الموقع">
+        <div class="sidebar-heading">
+          <p class="eyebrow">WORKSPACE</p>
+          <strong>القائمة الرئيسية</strong>
+          <span>اختر القسم الذي تريد إدارته</span>
+        </div>
+        <nav id="mainNav" class="main-nav" aria-label="التنقل الرئيسي">
+          <div class="nav-group">
+            <span class="nav-group-title">نظرة عامة</span>
+            <button class="nav-btn active" data-view="overview"><span class="nav-symbol" aria-hidden="true">⌂</span><span>الرئيسية</span></button>
+          </div>
+          <div class="nav-group">
+            <span class="nav-group-title">إدارة المعرض</span>
+            <button class="nav-btn" data-view="cars"><span class="nav-symbol" aria-hidden="true">▣</span><span>السيارات</span></button>
+            <button class="nav-btn" data-view="expenses"><span class="nav-symbol" aria-hidden="true">↗</span><span>المصروفات</span></button>
+            <button class="nav-btn" data-view="receivables"><span class="nav-symbol" aria-hidden="true">◷</span><span>المبالغ المتبقية</span></button>
+          </div>
+          <div class="nav-group">
+            <span class="nav-group-title">الحسابات والشركاء</span>
+            <button class="nav-btn" data-view="debts"><span class="nav-symbol" aria-hidden="true">≋</span><span>الذمم والأقساط</span></button>
+            <button class="nav-btn" data-view="capital"><span class="nav-symbol" aria-hidden="true">＋</span><span>رأس المال والخزينة</span></button>
+            <button class="nav-btn" data-view="partners"><span class="nav-symbol" aria-hidden="true">⇄</span><span>حركة الشركاء</span></button>
+          </div>
+          <div class="nav-group">
+            <span class="nav-group-title">التشغيل والرقابة</span>
+            <button class="nav-btn" data-view="cashbook"><span class="nav-symbol" aria-hidden="true">⇄</span><span>دفتر الحركة والخزينة</span></button>
+            <button class="nav-btn" data-view="inventory"><span class="nav-symbol" aria-hidden="true">▣</span><span>مخزون السيارات والأرباح</span></button>
+            <button class="nav-btn" data-view="customers"><span class="nav-symbol" aria-hidden="true">♙</span><span>حسابات العملاء</span></button>
+            <button class="nav-btn" data-view="reminders"><span class="nav-symbol" aria-hidden="true">◷</span><span>التنبيهات والاستحقاقات</span></button>
+            <button class="nav-btn" data-view="audit"><span class="nav-symbol" aria-hidden="true">⌕</span><span>سجل المراجعة</span></button>
+            <button class="nav-btn" data-view="backups"><span class="nav-symbol" aria-hidden="true">▤</span><span>النسخ الاحتياطي</span></button>
+          </div>
+          <div class="nav-group">
+            <span class="nav-group-title">التقارير والنظام</span>
+            <button class="nav-btn" data-view="reports"><span class="nav-symbol" aria-hidden="true">▤</span><span>التقارير</span></button>
+            <button class="nav-btn" data-view="monthlyClosing"><span class="nav-symbol" aria-hidden="true">▦</span><span>التقفيل الشهري</span></button>
+            <button class="nav-btn" data-view="yearlyClosing"><span class="nav-symbol" aria-hidden="true">▤</span><span>التقفيل السنوي</span></button>
+            <button class="nav-btn" data-view="requests"><span class="nav-symbol" aria-hidden="true">◎</span><span>طلبات الموظفين</span></button>
+            <button class="nav-btn" data-view="settings"><span class="nav-symbol" aria-hidden="true">⚙</span><span>الإعدادات والروابط</span></button>
+          </div>
+        </nav>
+        <div class="sidebar-foot">
+          <span class="sidebar-foot-mark">IS</span>
+          <div><strong>IS Motors</strong><small>إدارة المعرض والحسابات</small></div>
+        </div>
+      </aside>
 
-    <nav id="mainNav" class="main-nav" aria-label="التنقل الرئيسي">
-      <button class="nav-btn active" data-view="overview">الرئيسية</button>
-      <button class="nav-btn" data-view="cars">السيارات</button>
-      <button class="nav-btn" data-view="expenses">المصروفات</button>
-      <button class="nav-btn" data-view="receivables">المبالغ المتبقية</button>
-      <button class="nav-btn" data-view="debts">الذمم والأقساط</button>
-      <button class="nav-btn" data-view="capital">رأس المال والخزينة</button>
-      <button class="nav-btn" data-view="partners">حركة الشركاء</button>
-      <button class="nav-btn" data-view="reports">التقارير والتقفيل</button>
-      <button class="nav-btn" data-view="requests">طلبات الموظفين</button>
-      <button class="nav-btn" data-view="settings">الإعدادات والروابط</button>
-    </nav>
+      <div class="workspace-main">
+        <section class="welcome-strip">
+          <div class="welcome-copy">
+            <p class="eyebrow">لوحة التحكم</p>
+            <h1 id="pageTitle">الرئيسية</h1>
+            <p id="userLine" class="muted"></p>
+          </div>
+          <div class="welcome-actions">
+            <label class="search-wrap">
+              <span class="search-symbol" aria-hidden="true">⌕</span>
+              <input id="globalSearch" class="search-input" type="search" placeholder="ابحث في الصفحة الحالية..." aria-label="ابحث في الصفحة الحالية">
+            </label>
+            <button id="exportBtn" class="btn btn-outline btn-small" type="button"><span aria-hidden="true">⇩</span> تصدير CSV</button>
+          </div>
+        </section>
 
-    <section id="mainContent" class="main-content" aria-live="polite"></section>
-    <footer class="app-footer">
-      <span>IS Motors — نظام الإدارة المالية</span>
-      <span>© 2026 Abdulrahman Ahmed Abdo</span>
-    </footer>
+        <section id="mainContent" class="main-content" aria-live="polite"></section>
+        <footer class="app-footer">
+          <span>IS Motors — نظام الإدارة المالية</span>
+          <span>© 2026 Abdulrahman Ahmed Abdo</span>
+        </footer>
+      </div>
+    </div>
   </main>
 
   <main id="employeeShell" class="app-shell employee-shell" hidden>

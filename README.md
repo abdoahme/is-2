@@ -4,8 +4,8 @@ Single-codebase Arabic, right-to-left web application for the IS Motors dealersh
 
 ## Files
 - `index.html` — application shell and login screen
-- `styles.css` — responsive dark theme
-- `app.js` — Supabase authentication, role checks, database operations, reports and UI
+- `styles.css` — responsive light theme and mobile layout
+- `app.js` — Supabase authentication, role checks, detailed finance dashboard, monthly/yearly close, reports and UI
 
 ## Connected backend
 - Supabase project: `xnogogvdxforrpdijuuu`
@@ -22,3 +22,16 @@ Single-codebase Arabic, right-to-left web application for the IS Motors dealersh
 This is a static site. Publish the root of the repository on Vercel. No build step or server-side secret is required for the current accounting features.
 
 The Gemini key is intentionally not included in browser source code. A secure server-side proxy and a separately configured secret are required before enabling Gemini API calls.
+
+
+## Complete project documentation
+
+- [Islam Al-Fayed complete project dossier](./ISLAM-AL-FAYED-IS-MOTORS-COMPLETE-PROJECT.md) — project identifiers, service relationships, data model, setup notes, and full source code snapshot.
+
+## Accounting close
+
+- Monthly close saves a financial snapshot and blocks changes to records in a closed month through the application UI.
+- Annual close requires all active months to be closed first.
+- Reopening requires a reason and is recorded in the closing audit history.
+- Financial rows with invalid/missing dates and pending employee supply requests prevent closing.
+
