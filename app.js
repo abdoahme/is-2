@@ -100,6 +100,9 @@
         {key:"partnerPaymentMethod",label:"طريقة إيداع الشراكة",type:"select",options:["نقداً بالخزينة","تحويل بنكي","شيك بنكي","إيداع بنكي مباشر"]},
         {key:"prepCost",label:"مصاريف التجهيز",type:"number"},
         {key:"salePrice",label:"إجمالي سعر البيع",type:"number"},
+        {key:"saleDate",label:"تاريخ البيع",type:"date"},
+        {key:"saleInitialPayment",label:"المبلغ المدفوع عند البيع (الدفعة الأولى)",type:"number"},
+        {key:"salePaymentMethod",label:"طريقة تحصيل الدفعة الأولى",type:"select",options:["نقداً","تحويل بنكي","شيك","بطاقة","أخرى"]},
         {key:"status",label:"حالة السيارة",type:"select",options:["قيد البيع","كاش","متبقي","تقسيط","مباع"]},
         {key:"nextDueDate",label:"موعد القسط القادم (اختياري)",type:"date"},
         {key:"customer",label:"اسم العميل"},
@@ -500,7 +503,7 @@
         reference:item.receiptNo||"",source_type:"expense",source_id:String(item.id),is_legacy:false
       });
     });
-    (sourceState.cars||[]).filter(car=>String(car.status||"")==="كاش" && amount(car.salePrice)>0 && car.id).forEach(car=>{
+    (sourceState.cars||[]).filter(car=>isSoldCar(car) && amount(car.salePrice)>0 && car.id).forEach(car=>{
       const reversed=new Set(financialTransactions.filter(tx=>tx.reversal_of).map(tx=>String(tx.reversal_of)));
       const previousAuto=financialTransactions.find(tx=>String(tx.car_id||"")===String(car.id)&&tx.source_type==="car_cash"&&tx.category==="car_collection");
       if(previousAuto && !reversed.has(String(previousAuto.id))){
@@ -512,17 +515,16 @@
         });
         return;
       }
-      const hasAnyCollectionHistory=financialTransactions.some(tx=>String(tx.car_id||"")===String(car.id) && (tx.category==="car_collection" || (tx.category==="reversal" && ["car","car_collection","car_cash"].includes(tx.source_type))));
-      const paid=financialTransactions.filter(tx=>String(tx.car_id||"")===String(car.id) &&
-        (tx.category==="car_collection" || (tx.category==="reversal" && ["car","car_collection","car_cash"].includes(tx.source_type)))
-      ).reduce((sum,tx)=>sum+(tx.direction==="inflow"?amount(tx.amount):-amount(tx.amount)),0);
-      const remaining=Math.max(0,amount(car.salePrice)-paid);
-      if(!previousAuto && !hasAnyCollectionHistory && remaining>0.005 && /^\d{4}-\d{2}-\d{2}$/.test(String(car.date||""))){
+      const hasLegacyCashEntry=financialTransactions.some(tx=>String(tx.car_id||"")===String(car.id)&&tx.source_type==="car_cash");
+      const firstPayment=amount(car.saleInitialPayment);
+      const paymentDate=String(car.saleDate||car.date||"");
+      if(!hasLegacyCashEntry && firstPayment>0 && /^\d{4}-\d{2}-\d{2}$/.test(paymentDate)){
         output.push({
-          user_id:session.user.id,transaction_date:car.date,direction:"inflow",category:"car_collection",
-          payment_method:"cash",amount:remaining,car_id:String(car.id),person_name:car.customer||"",
-          description:"تحصيل نقدي كامل حسب حالة السيارة كاش",source_type:"car_cash",
-          source_id:String(car.id),is_legacy:false
+          user_id:session.user.id,transaction_date:paymentDate,direction:"inflow",category:"car_collection",
+          payment_method:dbPaymentMethod(car.salePaymentMethod),amount:firstPayment,
+          car_id:String(car.id),person_name:car.customer||"",
+          description:"الدفعة الأولى من بيع السيارة "+String(car.model||""),
+          source_type:"car_sale_payment",source_id:String(car.id),is_legacy:false
         });
       }
     });
@@ -549,7 +551,7 @@
     const desired=desiredAppCashMovements(sourceState);
     const reversed=new Set(financialTransactions.filter(t=>t.reversal_of).map(t=>String(t.reversal_of)));
     const active=financialTransactions.filter(t=>
-      ["expense","capital","car_cash"].includes(t.source_type) && t.category!=="reversal" && !reversed.has(String(t.id))
+      ["expense","capital","car_cash","car_sale_payment"].includes(t.source_type) && t.category!=="reversal" && !reversed.has(String(t.id))
     );
     const desiredGroups=new Map();
     desired.forEach(item=>{
@@ -2028,6 +2030,25 @@
       wrapper.hidden=!trigger||trigger.value!==wrapper.dataset.showValue;
     });
   }
+
+  function updateCarSalePreview(){
+    const host=$("carSaleCalcPreview"),fields=$("editorFields");
+    if(!host||!fields||editingCollection!=="cars")return;
+    const read=name=>fields.querySelector('[name="'+name+'"]');
+    const sale=amount(read("salePrice")&&read("salePrice").value);
+    const first=amount(read("saleInitialPayment")&&read("saleInitialPayment").value);
+    const status=String(read("status")&&read("status").value||"");
+    const carId=editingId?String(editingId):"";
+    const otherPaid=financialTransactions.filter(tx=>String(tx.car_id||"")===carId&&tx.source_type!=="car_sale_payment"&&
+      (tx.category==="car_collection"||(tx.category==="reversal"&&["car","car_collection","car_cash","car_sale_payment"].includes(tx.source_type)))
+    ).reduce((sum,tx)=>sum+(tx.direction==="inflow"?amount(tx.amount):-amount(tx.amount)),0);
+    const totalPaid=Math.max(0,otherPaid)+first;
+    const remaining=Math.max(0,sale-totalPaid);
+    const sold=["كاش","متبقي","تقسيط","مباع"].includes(status)||first>0;
+    host.innerHTML=sold
+      ? '<span>إجمالي المدفوع المتوقع: <strong class="positive">'+money(totalPaid)+'</strong></span><span>المتبقي من سعر البيع: <strong class="'+(remaining>0?"negative":"positive")+'">'+money(remaining)+'</strong></span>'
+      : '<span>أدخل سعر البيع والدفعة الأولى، وسيظهر المتبقي تلقائيًا عند تحديد حالة البيع.</span>';
+  }
   function openEditor(collection,id) {
     const schema = schemas[collection];
     if (!schema) return;
@@ -2038,8 +2059,9 @@
       toast("هذا القيد مرتبط بسيارة أو حركة شريك. عدّله من سجل السيارة أو اتركه كما هو للحفاظ على تطابق الدفاتر.", "error");
       return;
     }
-    const defaults = {id:makeId(),date:today(),dueDate:today(),status:collection==="cars"?"قيد البيع":(collection==="debts"?"قيد المتابعة":""),paidAmount:0,purchasePrice:0,prepCost:0,salePrice:0,amount:0,totalAmount:0,deposited:0,withdrawn:0,profitLossAmount:0,partnerContribution:0};
-    const value = item || defaults;
+    const defaults = {id:makeId(),date:today(),saleDate:today(),dueDate:today(),status:collection==="cars"?"قيد البيع":(collection==="debts"?"قيد المتابعة":""),paidAmount:0,saleInitialPayment:0,purchasePrice:0,prepCost:0,salePrice:0,amount:0,totalAmount:0,deposited:0,withdrawn:0,profitLossAmount:0,partnerContribution:0};
+    const value = Object.assign({},defaults,item||{});
+    if(collection==="cars" && item && !value.saleDate) value.saleDate=value.date||today();
     const fields = collection === "partnerPayouts"
       ? schema.fields.map(field => field.key === "partner"
         ? Object.assign({},field,{options:partnerBalances().filter(x=>x.balance>0).map(x=>x.partner)})
@@ -2070,8 +2092,9 @@
         control = '<input name="' + esc(field.key) + '" type="' + (field.type || "text") + '"' + (field.type==="number"?' min="0" step="0.01" dir="ltr"':'') + (field.type==="date"?'':'') + ' value="' + esc(val) + '"' + (field.required?' required':'') + '>';
       }
       return '<label class="' + cls + '"' + (field.showWhen?' data-show-field="' + esc(field.showWhen.field) + '" data-show-value="' + esc(field.showWhen.value) + '"':"") + '>' + esc(field.label) + control + '</label>';
-    }).join("");
+    }).join("") + (collection==="cars" ? '<div id="carSaleCalcPreview" class="dashboard-info-strip full section-gap" aria-live="polite"></div>' : "");
     updateConditionalEditorFields();
+    if(collection==="cars") updateCarSalePreview();
     translateDOM($("editorDialog"));
     $("editorDialog").showModal();
   }
@@ -2221,9 +2244,19 @@
       toast("يجب أن يكون مبلغ المصروف أكبر من صفر.", "error");
       return;
     }
-    if (collection==="cars" && data.paidAmount > data.salePrice + 0.0001) {
-      toast("المبلغ المدفوع لا يمكن أن يتجاوز إجمالي سعر البيع.", "error");
+    if (collection==="cars" && amount(data.saleInitialPayment) > amount(data.salePrice) + 0.0001) {
+      toast("الدفعة الأولى لا يمكن أن تتجاوز إجمالي سعر البيع.", "error");
       return;
+    }
+    if(collection==="cars" && isSoldCar(data) && amount(data.salePrice)<=0){toast("أدخل سعر البيع قبل اعتماد بيع السيارة.","error");return;}
+    if(collection==="cars" && amount(data.saleInitialPayment)>0 && !isSoldCar(data)) data.status="متبقي";
+    if(collection==="cars" && isSoldCar(data)){
+      data.saleDate=data.saleDate||data.date||today();
+      const carId=String(data.id||editingId||"");
+      const otherPaid=financialTransactions.filter(tx=>String(tx.car_id||"")===carId&&tx.source_type!=="car_sale_payment"&&
+        (tx.category==="car_collection"||(tx.category==="reversal"&&["car","car_collection","car_cash","car_sale_payment"].includes(tx.source_type)))
+      ).reduce((sum,tx)=>sum+(tx.direction==="inflow"?amount(tx.amount):-amount(tx.amount)),0);
+      if(data.status==="كاش" && Math.max(0,otherPaid)+amount(data.saleInitialPayment)<amount(data.salePrice)-0.0001) data.status="متبقي";
     }
     if (collection==="cars" && amount(data.partnerSharePercent)>100) {
       toast("نسبة ربح الشريك لا يمكن أن تتجاوز 100%.", "error");
@@ -2581,7 +2614,8 @@
 
   document.querySelectorAll(".language-select").forEach(select=>select.addEventListener("change",()=>setLanguage(select.value)));
   $("employeeLogoutBtn").addEventListener("click",logout);
-  $("editorFields").addEventListener("change",event=>{if(event.target.name==="category")updateConditionalEditorFields();});
+  $("editorFields").addEventListener("change",event=>{if(event.target.name==="category")updateConditionalEditorFields();if(["salePrice","saleInitialPayment","status"].includes(event.target.name))updateCarSalePreview();});
+  $("editorFields").addEventListener("input",event=>{if(["salePrice","saleInitialPayment","status"].includes(event.target.name))updateCarSalePreview();});
   $("editorForm").addEventListener("submit",submitEditor);
   $("closeEditorBtn").addEventListener("click",()=>$("editorDialog").close());
   $("cancelEditorBtn").addEventListener("click",()=>$("editorDialog").close());
