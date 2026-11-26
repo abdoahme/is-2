@@ -473,7 +473,8 @@
       ["سيارات",state.cars || []],
       ["مصروفات",state.expenses || []],
       ["ذمم",state.debts || []],
-      ["رأس المال",state.capital || []]
+      ["رأس المال",state.capital || []],
+      ["حركة الشركاء",state.partnerMovements || []]
     ];
     return groups.reduce((all,group)=>all.concat(group[1].filter(item=>!/^\d{4}-\d{2}-\d{2}$/.test(recordDate(item))).map(item=>group[0])),[]);
   }
@@ -545,7 +546,7 @@
 
   function activityMonthsForYear(year) {
     const keys = new Set();
-    const groups = [state.cars || [],state.expenses || [],state.debts || [],state.capital || []];
+    const groups = [state.cars || [],state.expenses || [],state.debts || [],state.capital || [],state.partnerMovements || []];
     groups.forEach(group=>group.forEach(item=>{
       const key = monthKey(recordDate(item));
       if (key && key.slice(0,4)===String(year)) keys.add(key);
