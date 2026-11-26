@@ -1786,6 +1786,7 @@
     else if (currentView === "requests") host.innerHTML = renderRequests();
     else if (currentView === "settings") host.innerHTML = renderSettings();
     $("pageTitle").textContent = titles[currentView] || "الرئيسية";
+    if(currentView==="management") renderAiConversation();
     document.querySelectorAll(".nav-btn").forEach(btn=>btn.classList.toggle("active",btn.dataset.view===currentView));
   }
 
