@@ -86,8 +86,29 @@ module.exports = async function handler(req, res) {
     });
     const result = await aiResponse.json().catch(() => ({}));
     if (!aiResponse.ok) {
-      const status = aiResponse.status === 429 ? 429 : 502;
-      return send(res, status, { error: aiResponse.status === 429 ? "وصلت خدمة الذكاء الاصطناعي إلى حد الاستخدام الحالي." : "تعذر على خدمة الذكاء الاصطناعي معالجة الطلب." });
+      const providerError = result && result.error || {};
+      const providerStatus = String(providerError.status || "").toUpperCase();
+      const providerCode = Number(providerError.code || aiResponse.status);
+      // Log only provider diagnostics. Never log request headers, prompts, or API keys.
+      console.error("[admin-assistant] Gemini request failed", {
+        httpStatus: aiResponse.status,
+        providerCode,
+        providerStatus,
+        model: MODEL
+      });
+      if (aiResponse.status === 429 || providerStatus === "RESOURCE_EXHAUSTED") {
+        return send(res, 429, { error: "وصلت خدمة Gemini إلى حد الاستخدام أو الرصيد المتاح. تحقق من الحصة والفوترة في Google AI Studio." });
+      }
+      if (aiResponse.status === 401 || aiResponse.status === 403 || providerStatus === "PERMISSION_DENIED" || providerStatus === "UNAUTHENTICATED") {
+        return send(res, 502, { error: "مفتاح Gemini غير صالح أو لا يملك صلاحية استخدام Gemini API. تحقق من المفتاح وتفعيل Gemini API وقيود المفتاح." });
+      }
+      if (aiResponse.status === 404 || providerStatus === "NOT_FOUND") {
+        return send(res, 502, { error: "نموذج Gemini المحدد غير متاح لهذا المفتاح أو لهذا الإصدار من API." });
+      }
+      if (aiResponse.status === 400 || providerStatus === "INVALID_ARGUMENT") {
+        return send(res, 502, { error: "رفضت Gemini صيغة الطلب. راجع إعدادات النموذج أو محتوى الطلب." });
+      }
+      return send(res, 502, { error: "خدمة Gemini تواجه مشكلة مؤقتة. حاول مرة أخرى لاحقًا." });
     }
     const answer = (result.candidates && result.candidates[0] && result.candidates[0].content && result.candidates[0].content.parts || [])
       .map((part) => part.text || "").join("\n").trim();
