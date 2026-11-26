@@ -41,8 +41,14 @@
   const titles = {
     overview:"الرئيسية", cars:"السيارات", expenses:"المصروفات",
     receivables:"المبالغ المتبقية", debts:"الذمم والأقساط",
-    capital:"رأس المال والخزينة", partners:"حركة الشركاء", reports:"التقارير والتقفيل", monthlyClosing:"التقفيل الشهري", yearlyClosing:"التقفيل السنوي", requests:"طلبات الموظفين", settings:"الإعدادات والروابط"
+    capital:"رأس المال والخزينة", partners:"حركة الشركاء",
+    cashbook:"دفتر الحركة والخزينة", inventory:"مخزون السيارات والأرباح",
+    customers:"حسابات العملاء", reminders:"التنبيهات والاستحقاقات",
+    audit:"سجل المراجعة", backups:"النسخ الاحتياطي",
+    reports:"التقارير والتقفيل", monthlyClosing:"التقفيل الشهري",
+    yearlyClosing:"التقفيل السنوي", requests:"طلبات الموظفين", settings:"الإعدادات والروابط"
   };
+
   const schemas = {
     cars: {
       title:"السيارة",
@@ -53,6 +59,7 @@
         {key:"purchasePrice",label:"سعر الشراء",type:"number"},
         {key:"partnerName",label:"اسم الشريك المساهم (اختياري)"},
         {key:"partnerContribution",label:"مبلغ مساهمة الشريك",type:"number"},
+        {key:"partnerSharePercent",label:"نسبة ربح الشريك المتفق عليها % (اختياري)",type:"number"},
         {key:"partnerPaymentMethod",label:"طريقة إيداع الشراكة",type:"select",options:["نقداً بالخزينة","تحويل بنكي","شيك بنكي","إيداع بنكي مباشر"]},
         {key:"prepCost",label:"مصاريف التجهيز",type:"number"},
         {key:"salePrice",label:"إجمالي سعر البيع",type:"number"},
@@ -120,6 +127,12 @@
   let state = emptyState();
   let recordId = null;
   let requests = [];
+  let financialTransactions = [];
+  let cashReconciliations = [];
+  let auditEntries = [];
+  let backupEntries = [];
+  let financialLedgerLoaded = false;
+  let persistedState = null;
   let currentView = "overview";
   let editingCollection = null;
   let editingId = null;
@@ -189,6 +202,7 @@
       role = roleResult.data;
       if (role === "admin") {
         await loadAdminState();
+        await loadFinancialOperations();
         await loadRequests();
         $("bootScreen").hidden = true;
         $("employeeShell").hidden = true;
@@ -225,9 +239,11 @@
     if (result.data) {
       recordId = result.data.id;
       state = normaliseState(result.data.payload);
+      persistedState = clone(state);
     } else {
       recordId = null;
       state = emptyState();
+      persistedState = clone(state);
       const created = await saveState(true);
       if (!created) throw new Error("تعذر إنشاء سجل الحساب في قاعدة البيانات. لم يتم فتح بيانات غير محفوظة.");
     }
@@ -258,6 +274,8 @@
       }
       setSync("تم الحفظ", "");
       if (!silent) toast("تم حفظ التعديلات في قاعدة البيانات.", "success");
+      if(persistedState) await writeStateAudit(persistedState,payload);
+      persistedState=clone(payload);
       return true;
     } catch (error) {
       setSync("تعذر الحفظ", "offline");
@@ -266,6 +284,212 @@
     } finally {
       saving = false;
     }
+  }
+
+  function dbPaymentMethod(value) {
+    const method=String(value||"").trim();
+    if (["نقداً","نقداً بالخزينة","نقداً من الخزينة"].includes(method)) return "cash";
+    if (["تحويل بنكي","إيداع بنكي مباشر"].includes(method)) return "bank_transfer";
+    if (["شيك","شيك بنكي"].includes(method)) return "check";
+    if (method==="بطاقة") return "card";
+    if (["cash","bank_transfer","check","card","other"].includes(method)) return method;
+    return "other";
+  }
+
+  function sameSourceMovement(existing,desired) {
+    return existing.transaction_date===desired.transaction_date &&
+      existing.direction===desired.direction &&
+      existing.category===desired.category &&
+      existing.payment_method===desired.payment_method &&
+      Math.abs(amount(existing.amount)-amount(desired.amount))<0.0001;
+  }
+
+  async function insertFinancialTransaction(payload) {
+    const row=Object.assign({
+      user_id:session.user.id,created_by:session.user.id,source_key:"manual:"+makeId()
+    },payload);
+    const result=await db.from("financial_transactions").insert(row).select("*").single();
+    if(result.error) throw result.error;
+    financialTransactions.unshift(result.data);
+    return result.data;
+  }
+
+  async function reverseFinancialTransaction(original,reason) {
+    if (!original || original.category==="reversal") return null;
+    if (financialTransactions.some(t=>String(t.reversal_of||"")===String(original.id))) return null;
+    return insertFinancialTransaction({
+      transaction_date:today(),direction:original.direction==="inflow"?"outflow":"inflow",
+      category:"reversal",payment_method:original.payment_method||"other",amount:amount(original.amount),
+      car_id:original.car_id||null,person_name:original.person_name||"",
+      description:"عكس حركة "+(original.description||original.category)+" — "+String(reason||"تسوية محاسبية"),
+      reference:original.reference||null,source_type:original.source_type||"manual",
+      source_id:original.source_id||original.id,reversal_of:original.id,is_legacy:false
+    });
+  }
+
+  function desiredAppCashMovements(sourceState) {
+    const output=[];
+    (sourceState.expenses||[]).forEach(item=>{
+      if (!item || !item.id || amount(item.amount)<=0 || !/^\d{4}-\d{2}-\d{2}$/.test(String(item.date||""))) return;
+      output.push({
+        user_id:session.user.id,transaction_date:item.date,direction:"outflow",category:"expense",
+        payment_method:dbPaymentMethod(item.paymentMethod),amount:amount(item.amount),
+        person_name:item.recipient||"",description:item.description||item.category||"مصروف",
+        reference:item.receiptNo||"",source_type:"expense",source_id:String(item.id),is_legacy:false
+      });
+    });
+    (sourceState.capital||[]).forEach(item=>{
+      if (!item || !item.id || !/^\d{4}-\d{2}-\d{2}$/.test(String(item.date||""))) return;
+      if (amount(item.deposited)>0) output.push({
+        user_id:session.user.id,transaction_date:item.date,direction:"inflow",category:"capital_deposit",
+        payment_method:dbPaymentMethod(item.method),amount:amount(item.deposited),
+        person_name:item.partner||"",description:item.description||item.movementType||"إيداع رأس مال",
+        reference:item.receiptNo||"",source_type:"capital",source_id:String(item.id),is_legacy:false
+      });
+      if (amount(item.withdrawn)>0) output.push({
+        user_id:session.user.id,transaction_date:item.date,direction:"outflow",category:"capital_withdrawal",
+        payment_method:dbPaymentMethod(item.method),amount:amount(item.withdrawn),
+        person_name:item.partner||"",description:item.description||item.movementType||"سحب من رأس المال",
+        reference:item.receiptNo||"",source_type:"capital",source_id:String(item.id),is_legacy:false
+      });
+    });
+    return output;
+  }
+
+  async function syncCashbookWithAppState(sourceState) {
+    if(!financialLedgerLoaded || !session || role!=="admin") return;
+    const desired=desiredAppCashMovements(sourceState);
+    const reversed=new Set(financialTransactions.filter(t=>t.reversal_of).map(t=>String(t.reversal_of)));
+    const active=financialTransactions.filter(t=>
+      ["expense","capital"].includes(t.source_type) && t.category!=="reversal" && !reversed.has(String(t.id))
+    );
+    const desiredGroups=new Map();
+    desired.forEach(item=>{
+      const key=item.source_type+":"+item.source_id;
+      if(!desiredGroups.has(key)) desiredGroups.set(key,[]);
+      desiredGroups.get(key).push(item);
+    });
+    for(const current of active){
+      const key=current.source_type+":"+current.source_id;
+      const candidates=desiredGroups.get(key)||[];
+      const matchedIndex=candidates.findIndex(item=>sameSourceMovement(current,item));
+      if(matchedIndex>=0) candidates.splice(matchedIndex,1);
+      else await reverseFinancialTransaction(current,"تعديل أو حذف السجل المرتبط في النظام");
+    }
+    for(const group of desiredGroups.values()){
+      for(const item of group){
+        await insertFinancialTransaction(Object.assign({},item,{source_key:"state:"+item.source_type+":"+item.source_id+":"+makeId()}));
+      }
+    }
+  }
+
+  async function writeAuditEvent(event) {
+    try{
+      const result=await db.from("audit_logs").insert(Object.assign({
+        user_id:session.user.id,created_by:session.user.id
+      },event)).select("id,created_at,event_type,entity_type,entity_id,description").single();
+      if(result.error) throw result.error;
+      auditEntries.unshift(result.data);
+      auditEntries=auditEntries.slice(0,150);
+      return true;
+    }catch(error){
+      console.warn("audit log write failed",error.message);
+      return false;
+    }
+  }
+
+  async function writeStateAudit(beforeState,afterState) {
+    if(!beforeState || !afterState) return;
+    const collections=["cars","expenses","debts","capital","partnerMovements"];
+    const rows=[];
+    collections.forEach(collection=>{
+      const before=new Map((beforeState[collection]||[]).map(item=>[String(item.id),item]));
+      const after=new Map((afterState[collection]||[]).map(item=>[String(item.id),item]));
+      before.forEach((oldItem,id)=>{
+        if(!after.has(id)) rows.push({user_id:session.user.id,created_by:session.user.id,event_type:"delete",entity_type:collection,entity_id:id,description:"حذف سجل "+collection,before_data:oldItem});
+        else if(JSON.stringify(oldItem)!==JSON.stringify(after.get(id))) rows.push({user_id:session.user.id,created_by:session.user.id,event_type:"update",entity_type:collection,entity_id:id,description:"تعديل سجل "+collection,before_data:oldItem,after_data:after.get(id)});
+      });
+      after.forEach((newItem,id)=>{
+        if(!before.has(id)) rows.push({user_id:session.user.id,created_by:session.user.id,event_type:"create",entity_type:collection,entity_id:id,description:"إضافة سجل "+collection,after_data:newItem});
+      });
+    });
+    if(!rows.length) return;
+    try{
+      const result=await db.from("audit_logs").insert(rows).select("id,created_at,event_type,entity_type,entity_id,description");
+      if(result.error) throw result.error;
+      auditEntries=(result.data||[]).concat(auditEntries).slice(0,150);
+    }catch(error){console.warn("state audit failed",error.message);}
+  }
+
+  async function loadFinancialOperations() {
+    const owner=session.user.id;
+    setSync("تحميل الدفاتر المالية","busy");
+    const results=await Promise.all([
+      db.from("financial_transactions").select("*").eq("user_id",owner).order("transaction_date",{ascending:false}).order("created_at",{ascending:false}).limit(3000),
+      db.from("cash_reconciliations").select("*").eq("user_id",owner).order("reconciliation_date",{ascending:false}).limit(180),
+      db.from("audit_logs").select("id,created_at,event_type,entity_type,entity_id,description,before_data,after_data").eq("user_id",owner).order("created_at",{ascending:false}).limit(150),
+      db.from("app_backups").select("id,created_at,backup_type,label").eq("user_id",owner).order("created_at",{ascending:false}).limit(60)
+    ]);
+    for(const result of results) if(result.error) throw result.error;
+    financialTransactions=results[0].data||[];
+    cashReconciliations=results[1].data||[];
+    auditEntries=results[2].data||[];
+    backupEntries=results[3].data||[];
+    financialLedgerLoaded=true;
+    await syncCashbookWithAppState(state);
+    setSync("تم تحميل الدفاتر","");
+
+    try{
+      const localDate=today();
+      const daily=backupEntries.find(item=>item.backup_type==="daily" && new Date(item.created_at).toLocaleDateString("en-CA")===localDate);
+      if(!daily){
+        const payload={state:clone(state),financialTransactions:clone(financialTransactions),cashReconciliations:clone(cashReconciliations)};
+        const backup=await db.from("app_backups").insert({
+          user_id:owner,created_by:owner,backup_type:"daily",
+          label:"نسخة تلقائية يومية "+localDate,payload
+        }).select("id,created_at,backup_type,label").single();
+        if(backup.error) throw backup.error;
+        backupEntries.unshift(backup.data);
+        await writeAuditEvent({event_type:"backup",entity_type:"app_backups",entity_id:backup.data.id,description:"إنشاء نسخة احتياطية تلقائية يومية"});
+      }
+    }catch(error){console.warn("daily backup failed",error.message);}
+  }
+
+  function cashTotalsForDate(dateValue) {
+    const rows=financialTransactions.filter(item=>item.transaction_date===dateValue);
+    const totals={cashIn:0,cashOut:0,bankIn:0,bankOut:0,otherIn:0,otherOut:0};
+    rows.forEach(item=>{
+      const key=item.payment_method==="cash"?"cash":(item.payment_method==="bank_transfer"?"bank":"other");
+      const target=key+(item.direction==="inflow"?"In":"Out");
+      totals[target]+=amount(item.amount);
+    });
+    return totals;
+  }
+
+  function customerGroups() {
+    const map=new Map();
+    (state.cars||[]).filter(car=>car.customer).forEach(car=>{
+      const name=String(car.customer).trim();
+      if(!map.has(name)) map.set(name,{name,cars:[],sales:0,paid:0,remaining:0});
+      const group=map.get(name);
+      group.cars.push(car);
+      if(isSoldCar(car)){
+        group.sales+=amount(car.salePrice);
+        group.paid+=carPaid(car);
+        group.remaining+=carRemaining(car);
+      }
+    });
+    return Array.from(map.values()).sort((a,b)=>b.remaining-a.remaining);
+  }
+
+  function carProfitDetails(car) {
+    const cost=amount(car.purchasePrice)+amount(car.prepCost);
+    const profit=amount(car.salePrice)-cost;
+    const explicit=Number(car.partnerSharePercent);
+    const inferred=cost>0&&amount(car.partnerContribution)>0?Math.min(100,amount(car.partnerContribution)/cost*100):0;
+    const sharePercent=Number.isFinite(explicit)&&explicit>0?Math.min(100,explicit):inferred;
+    const partnerProfit=amount(car.partnerContribution)>0?profit*sharePercent/100:0;
+    return {cost,profit,sharePercent,partnerProfit,showPartner:amount(car.partnerContribution)>0,inferred:!(Number.isFinite(explicit)&&explicit>0)};
   }
 
   async function loadRequests() {
@@ -280,6 +504,14 @@
 
   function amount(value) { return num(value); }
   function carPaid(car) {
+    if (financialLedgerLoaded && car && car.id) {
+      const reversed=new Set(financialTransactions.filter(t=>t.reversal_of).map(t=>String(t.reversal_of)));
+      return Math.max(0,financialTransactions.filter(t=>
+        String(t.car_id||"")===String(car.id) &&
+        (t.category==="car_collection" || (t.category==="reversal" && (t.source_type==="car" || t.source_type==="car_collection"))) &&
+        !reversed.has(String(t.id))
+      ).reduce((sum,t)=>sum+(t.direction==="inflow"?amount(t.amount):-amount(t.amount)),0));
+    }
     if (car.paidAmount === undefined || car.paidAmount === null || car.paidAmount === "") {
       return car.status === "كاش" ? amount(car.salePrice) : 0;
     }
