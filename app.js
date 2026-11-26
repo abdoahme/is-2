@@ -937,6 +937,12 @@
       ["مصروفات التشغيل",snapshot.operatingExpenses,"negative","مجموع المصروفات المسجلة في الفترة."],
       ["أرباح من أشخاص",snapshot.profitFromPeople,"positive","الأرباح الإضافية المسجلة في حركة رأس المال."],
       ["خسائر لأشخاص",snapshot.lossToPeople,"negative","الخسائر الإضافية المسجلة في حركة رأس المال."],
+      ["تحصيلات العملاء المؤرخة في الفترة",snapshot.carCollectionsInPeriod,"positive","مجموع قيود التحصيل الفعلية المؤرخة داخل الفترة، بعد تسويات العكس."],
+      ["مدفوعات شراء السيارات في الفترة",snapshot.carPurchasePaymentsInPeriod,"negative","المدفوعات المسجلة في دفتر الحركة لشراء السيارات."],
+      ["مدفوعات تجهيز السيارات في الفترة",snapshot.carPrepPaymentsInPeriod,"negative","المدفوعات المسجلة في دفتر الحركة لتجهيز السيارات."],
+      ["صافي الحركة النقدية في الفترة",snapshot.cashNet,snapshot.cashNet>=0?"positive":"negative","الوارد النقدي ناقص المنصرف النقدي خلال الفترة."],
+      ["صافي الحركة البنكية في الفترة",snapshot.bankNet,snapshot.bankNet>=0?"positive":"negative","التحويلات البنكية الواردة ناقص التحويلات البنكية المنصرفة."],
+      ["إجمالي صافي حركة الدفتر",snapshot.totalCashNet,snapshot.totalCashNet>=0?"positive":"negative","كل الوارد ناقص كل المنصرف من دفتر الحركة."],
       ["صافي نتيجة الفترة",snapshot.netResult,snapshot.netResult>=0?"positive":"negative","مجمل الربح ناقص المصروفات، مضافًا إليه الأرباح ومطروحًا منه الخسائر."]
     ];
     const partnerHtml = snapshot.partnerBalances && snapshot.partnerBalances.length
@@ -955,8 +961,13 @@
       '<div><span>صافي حركة رأس المال بعد الأرباح والخسائر</span><b class="'+(snapshot.capitalNet>=0?"positive":"negative")+'">'+money(snapshot.capitalNet)+'</b></div>'+
       '<div><span>عدد السيارات / المباعة / المخزون</span><b>'+snapshot.counts.cars+' / '+snapshot.counts.soldCars+' / '+snapshot.counts.inventoryCars+'</b></div>'+
       '<div><span>عدد قيود المصروفات والذمم ورأس المال</span><b>'+snapshot.counts.expenses+' / '+snapshot.counts.debts+' / '+snapshot.counts.capitalEntries+'</b></div>'+
+      '<div><span>عدد حركات الدفتر المالي</span><b>'+snapshot.counts.transactions+'</b></div>'+
+      '<div><span>أيام لها حركات نقدية دون مطابقة</span><b class="'+(snapshot.counts.unreconciledCashDays?"negative":"positive")+'">'+snapshot.counts.unreconciledCashDays+'</b></div>'+
+      '<div><span>إجمالي فروق جرد الخزينة المسجلة</span><b class="'+(Math.abs(snapshot.cashDifferenceTotal)<0.005?"positive":"negative")+'">'+money(snapshot.cashDifferenceTotal)+'</b></div>'+
     '</div>'+partnerHtml+
-    '<p class="panel-note section-gap">الأرقام لقطة محفوظة في تاريخ التقفيل. المدفوع على سيارات الفترة رصيد تراكمي عند التقفيل، وليس كشف تحصيلات يومية؛ التطبيق لا يحتوي حتى الآن على دفتر مستقل لتاريخ كل دفعة تحصيل.</p>';
+    (snapshot.counts.legacyMovements?'<div class="closing-alert section-gap">تتضمن هذه الفترة '+snapshot.counts.legacyMovements+' حركة مرحّلة من النظام السابق؛ لم تتوفر تواريخ كل دفعة أو طرق الدفع الأصلية، لذلك لا يمكن إعادة بناء تفاصيلها اليومية.</div>':"")+
+    (snapshot.unreconciledCashDates&&snapshot.unreconciledCashDates.length?'<div class="closing-alert section-gap">توجد أيام حركة نقدية دون مطابقة خزينة: '+snapshot.unreconciledCashDates.map(esc).join("، ")+'</div>':"")+
+    '<p class="panel-note section-gap">المبالغ المسددة على السيارات وقت التقفيل رصيد تراكمي. أما التحصيلات والمدفوعات الجديدة فتظهر منفصلة بحسب تاريخ كل حركة من دفتر الحركة.</p>';
   }
 
   async function closeMonthlyPeriod() {
