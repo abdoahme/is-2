@@ -146,6 +146,98 @@
   let cashReconciliations = [];
   let auditEntries = [];
   let backupEntries = [];
+
+  let notificationRows = [];
+  let notificationChannel = null;
+  let notificationPanelOpen = false;
+  let lastSystemErrorReport = 0;
+  const PUSH_API = "/api/push";
+
+  function b64UrlToBytes(value) {
+    const padding = "=".repeat((4 - value.length % 4) % 4);
+    const raw = atob((value + padding).replace(/-/g, "+").replace(/_/g, "/"));
+    return Uint8Array.from(raw, ch => ch.charCodeAt(0));
+  }
+  async function pushApi(action, payload) {
+    const auth = await db.auth.getSession();
+    const accessToken = auth.data && auth.data.session && auth.data.session.access_token;
+    if (!accessToken) throw new Error("انتهت جلسة الدخول. سجّل الدخول مرة أخرى.");
+    const response = await fetch(PUSH_API, {
+      method: "POST",
+      headers: {"Content-Type":"application/json","Authorization":"Bearer "+accessToken},
+      body: JSON.stringify(Object.assign({action}, payload || {}))
+    });
+    const result = await response.json().catch(()=>({}));
+    if (!response.ok) throw new Error(result.error || "تعذر إكمال عملية الإشعارات.");
+    return result;
+  }
+  async function loadNotificationRows() {
+    const result = await db.from("app_notifications").select("id,kind,title,body,dedupe_key,read_at,created_at")
+      .eq("user_id",session.user.id).order("created_at",{ascending:false}).limit(40);
+    if (result.error) throw result.error;
+    notificationRows = result.data || [];
+    renderNotificationPanel();
+  }
+  function renderNotificationPanel() {
+    const panel=$("notificationsPanel");
+    const count=$("notificationsCount");
+    if(!panel||!count)return;
+    const unread=notificationRows.filter(row=>!row.read_at).length;
+    count.textContent=unread>99?"99+":String(unread);
+    count.hidden=unread===0;
+    const cards=notificationRows.length?notificationRows.map(row=>
+      '<article class="notification-item '+(row.read_at?"is-read":"is-unread")+'"><div class="notification-item-head"><strong>'+esc(row.title)+'</strong><span>'+dateText(String(row.created_at||"").slice(0,16).replace("T"," "))+'</span></div><p>'+esc(row.body)+'</p>'+(row.read_at?"":'<button class="btn btn-ghost btn-small" data-notification-read="'+esc(row.id)+'">تمييز كمقروء</button>')+'</article>'
+    ).join(""):'<p class="muted notification-empty">لا توجد إشعارات حتى الآن.</p>';
+    panel.innerHTML='<div class="notification-panel-head"><strong>الإشعارات</strong><button class="btn btn-ghost btn-small" data-notification-close>إغلاق</button></div><div class="notification-panel-actions"><button class="btn btn-primary btn-small" data-notification-enable>تفعيل إشعارات الهاتف</button><span class="muted">تصل حتى عند إغلاق الموقع بعد السماح بها</span></div><div class="notification-list">'+cards+'</div>';
+    panel.hidden=!notificationPanelOpen;
+  }
+  async function initAdminNotifications() {
+    if(role!=="admin"||!session)return;
+    try { await loadNotificationRows(); } catch(error) { console.warn("notifications unavailable",error.message); }
+    if(notificationChannel) return;
+    notificationChannel=db.channel("is-motors-admin-notifications")
+      .on("postgres_changes",{event:"INSERT",schema:"public",table:"app_notifications",filter:"user_id=eq."+session.user.id},payload=>{
+        if(!payload.new)return;
+        notificationRows.unshift(payload.new);
+        notificationRows=notificationRows.slice(0,40);
+        renderNotificationPanel();
+        toast(payload.new.title+": "+payload.new.body,payload.new.kind==="error"||payload.new.kind==="warning"?"error":"success");
+      }).subscribe();
+    renderNotificationPanel();
+  }
+  async function enablePhonePush() {
+    if(!("serviceWorker" in navigator)||!("PushManager" in window)||!("Notification" in window)){
+      toast("المتصفح الحالي لا يدعم إشعارات الويب. افتح الموقع من Chrome على Android.","error");return;
+    }
+    try {
+      const permission=await Notification.requestPermission();
+      if(permission!=="granted"){toast("لم يتم السماح بالإشعارات من إعدادات المتصفح.","error");return;}
+      const keyResponse=await fetch(PUSH_API);
+      const keyData=await keyResponse.json();
+      if(!keyResponse.ok||!keyData.publicKey)throw new Error("تعذر تحميل مفتاح إشعارات الموقع.");
+      const registration=await navigator.serviceWorker.register("/push-sw.js",{scope:"/"});
+      let subscription=await registration.pushManager.getSubscription();
+      if(!subscription) subscription=await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64UrlToBytes(keyData.publicKey)});
+      await pushApi("subscribe",{subscription:subscription.toJSON(),userAgent:navigator.userAgent.slice(0,240)});
+      await reportSystemIssue("info","تم تفعيل إشعارات الهاتف","هذا إشعار تجريبي للتأكد من وصول التنبيهات إلى هاتفك.","push-test:"+session.user.id+":"+Math.floor(Date.now()/60000));
+      toast("تم تفعيل إشعارات الهاتف وإرسال إشعار تجريبي.","success");
+      renderNotificationPanel();
+    } catch(error) {
+      toast("تعذر تفعيل إشعارات الهاتف: "+(error.message||"خطأ غير معروف"),"error");
+    }
+  }
+  async function reportSystemIssue(kind,title,body,dedupeKey) {
+    if(role!=="admin"||!session)return;
+    try { await pushApi("notify",{kind,title,body:String(body||"").slice(0,700),dedupeKey:dedupeKey||""}); }
+    catch(error) { console.warn("system notification delivery failed",error.message); }
+  }
+  async function markNotificationRead(id) {
+    const result=await db.from("app_notifications").update({read_at:new Date().toISOString()})
+      .eq("id",id).eq("user_id",session.user.id);
+    if(result.error){toast("تعذر تحديث الإشعار: "+result.error.message,"error");return;}
+    await loadNotificationRows();
+  }
+
   let financialLedgerLoaded = false;
   let persistedState = null;
   let selectedCustomer = "";
@@ -228,6 +320,7 @@
         $("userLine").textContent = session.user.email || "";
         currentView = "overview";
         render();
+        await initAdminNotifications();
       } else if (role === "user") {
         $("bootScreen").hidden = true;
         $("appShell").hidden = true;
@@ -1251,6 +1344,7 @@
     render();
     const difference=counted-expected;
     toast(Math.abs(difference)<0.005?"تمت مطابقة الخزينة دون فرق.":"تم حفظ المطابقة ويوجد فرق "+money(difference)+".",Math.abs(difference)<0.005?"success":"error");
+    if(Math.abs(difference)>=0.005) reportSystemIssue("finance","اختلاف في مطابقة الخزينة","تم تسجيل فرق "+money(difference)+" بتاريخ "+date+".","cash-difference:"+date+":"+difference.toFixed(2));
   }
 
   function renderInventory() {
@@ -2276,6 +2370,8 @@
   async function logout() {
     const result = await db.auth.signOut();
     if (result.error) toast("تعذر تسجيل الخروج: "+result.error.message,"error");
+    if(notificationChannel){db.removeChannel(notificationChannel);notificationChannel=null;}
+    notificationRows=[];notificationPanelOpen=false;
     session=null;role=null;recordId=null;state=emptyState();requests=[];showLogin();
   }
 
@@ -2297,6 +2393,30 @@
   });
 
   $("logoutBtn").addEventListener("click",logout);
+  $("notificationsBtn").addEventListener("click",()=>{
+    notificationPanelOpen=!notificationPanelOpen;
+    renderNotificationPanel();
+  });
+  $("notificationsPanel").addEventListener("click",async(event)=>{
+    const read=event.target.closest("[data-notification-read]");
+    if(read)await markNotificationRead(read.dataset.notificationRead);
+    if(event.target.closest("[data-notification-enable]"))await enablePhonePush();
+    if(event.target.closest("[data-notification-close]")){notificationPanelOpen=false;renderNotificationPanel();}
+  });
+  window.addEventListener("error",(event)=>{
+    if(role!=="admin"||!session)return;
+    const now=Date.now();if(now-lastSystemErrorReport<60000)return;lastSystemErrorReport=now;
+    const message=String(event.message||"حدث خطأ JavaScript").replace(/https?:\/\/\S+/g,"[رابط مخفي]").slice(0,350);
+    reportSystemIssue("error","خطأ في الموقع",message,"browser-error:"+message);
+  });
+  window.addEventListener("unhandledrejection",(event)=>{
+    if(role!=="admin"||!session)return;
+    const now=Date.now();if(now-lastSystemErrorReport<60000)return;lastSystemErrorReport=now;
+    const reason=event.reason;
+    const message=String(reason&&reason.message||reason||"عملية غير مكتملة").replace(/https?:\/\/\S+/g,"[رابط مخفي]").slice(0,350);
+    reportSystemIssue("error","تعذر إكمال عملية في الموقع",message,"promise-error:"+message);
+  });
+
   $("employeeLogoutBtn").addEventListener("click",logout);
   $("editorForm").addEventListener("submit",submitEditor);
   $("closeEditorBtn").addEventListener("click",()=>$("editorDialog").close());
