@@ -1048,6 +1048,60 @@
       renderClosingAuditLog("year",year);
   }
 
+  function transactionCategoryLabel(category) {
+    const labels={car_collection:"تحصيل سيارة",car_purchase:"سداد شراء سيارة",car_prep:"سداد تجهيز سيارة",expense:"مصروف تشغيل",capital_deposit:"إيداع رأس مال",capital_withdrawal:"سحب رأس مال",manual:"حركة أخرى",reversal:"قيد عكسي"};
+    return labels[category]||category||"حركة مالية";
+  }
+  function paymentMethodLabel(method) {
+    const labels={cash:"نقداً",bank_transfer:"تحويل بنكي",check:"شيك",card:"بطاقة",other:"غير محدد"};
+    return labels[method]||method||"غير محدد";
+  }
+  function renderCashbook() {
+    const month=today().slice(0,7);
+    const rows=financialTransactions.slice().sort((a,b)=>String(b.transaction_date||"").localeCompare(String(a.transaction_date||"")));
+    const monthRows=rows.filter(t=>String(t.transaction_date||"").startsWith(month));
+    const sum=(list,direction)=>list.filter(t=>t.direction===direction).reduce((n,t)=>n+amount(t.amount),0);
+    const inflow=sum(monthRows,"inflow"),outflow=sum(monthRows,"outflow");
+    const daily=cashTotalsForDate(today());
+    const reconciliation=cashReconciliations.find(r=>r.reconciliation_date===today());
+    const previous=cashReconciliations.filter(r=>r.reconciliation_date<today()).sort((a,b)=>b.reconciliation_date.localeCompare(a.reconciliation_date))[0];
+    const opening=reconciliation?amount(reconciliation.opening_cash):(previous?amount(previous.counted_cash):0);
+    const expected=reconciliation?amount(reconciliation.expected_cash):opening+daily.cashIn-daily.cashOut;
+    const cards=rows.slice(0,100).map(t=>{
+      const car=state.cars.find(c=>String(c.id)===String(t.car_id||""));
+      const sign=t.direction==="inflow"?"+":"−";
+      return '<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">'+esc(transactionCategoryLabel(t.category))+'</div><div class="data-card-sub">'+dateText(t.transaction_date)+' · '+esc(t.person_name||"بدون اسم")+'</div></div>'+badge(t.direction==="inflow"?"وارد":"منصرف",t.direction==="inflow"?"ok":"warn")+'</div><div class="data-card-grid"><div class="data-cell"><span>القيمة</span><strong class="'+(t.direction==="inflow"?"positive":"negative")+'">'+sign+money(t.amount)+'</strong></div><div class="data-cell"><span>طريقة الدفع</span><strong>'+esc(paymentMethodLabel(t.payment_method))+'</strong></div><div class="data-cell"><span>السيارة</span><strong>'+esc(car?car.model:(t.car_id||"—"))+'</strong></div><div class="data-cell"><span>المرجع</span><strong>'+esc(t.reference||"—")+'</strong></div></div>'+(t.is_legacy?'<p class="panel-note">رصيد مرحّل من السجلات السابقة؛ تاريخ الدفعة الأصلي غير متاح.</p>':"")+'</article>';
+    }).join("");
+    return heading("دفتر الحركة والخزينة","دفتر موحد للمقبوضات والمدفوعات مع الاحتفاظ بالأثر التاريخي.",'<button class="btn btn-primary btn-small" data-action="add-financial-transaction">+ تسجيل حركة</button>')+
+      '<div class="kpi-grid">'+kpi("الوارد خلال الشهر",money(inflow),"من أول الشهر","green")+kpi("المنصرف خلال الشهر",money(outflow),"من أول الشهر","red")+kpi("صافي الحركة",money(inflow-outflow),"الوارد ناقص المنصرف",inflow>=outflow?"blue":"red")+kpi("عدد الحركات",monthRows.length,"حركة خلال الشهر","gold")+'</div>'+
+      '<section class="panel section-gap"><div class="section-title-row"><div><h3>المطابقة اليومية للخزينة</h3><p class="panel-note">الرصيد المتوقع = الافتتاحي + وارد النقدية − منصرف النقدية.</p></div>'+badge(reconciliation?"تمت المطابقة":"بانتظار المطابقة",reconciliation?"ok":"warn")+'</div>'+
+      '<div class="dashboard-info-strip"><span>وارد نقدي: <b class="positive">'+money(daily.cashIn)+'</b></span><span>منصرف نقدي: <b class="negative">'+money(daily.cashOut)+'</b></span><span>وارد بنكي: <b>'+money(daily.bankIn)+'</b></span><span>منصرف بنكي: <b>'+money(daily.bankOut)+'</b></span></div>'+
+      '<div class="form-grid three section-gap"><label>النقدية الافتتاحية<input id="reconOpeningCash" type="number" min="0" step="0.01" value="'+opening+'" dir="ltr"></label><label>النقدية الفعلية بعد الجرد<input id="reconCountedCash" type="number" min="0" step="0.01" value="'+(reconciliation?amount(reconciliation.counted_cash):"")+'" placeholder="المبلغ الموجود فعلياً" dir="ltr"></label><label>الرصيد المتوقع<input readonly value="'+expected.toFixed(2)+' ج.م"></label><label class="full">ملاحظات<input id="reconNotes" value="'+esc(reconciliation?reconciliation.notes||"":"")+'" placeholder="تفاصيل فرق الخزينة أو الجرد"></label></div>'+
+      (reconciliation?'<div class="summary-line section-gap"><span>فرق المطابقة</span><strong class="'+(Math.abs(amount(reconciliation.cash_difference))<0.005?"positive":"negative")+'">'+money(reconciliation.cash_difference)+'</strong></div>':"")+
+      '<div class="page-actions section-gap"><button class="btn btn-primary btn-small" data-action="save-reconciliation">حفظ مطابقة اليوم</button></div></section>'+
+      '<section class="panel section-gap"><div class="section-title-row"><div><h3>الحركات الأخيرة</h3><p class="panel-note">أحدث 100 حركة محفوظة في الدفتر المالي.</p></div>'+badge(financialTransactions.length+" حركة","gold")+'</div>'+(cards?'<div class="data-list">'+cards+'</div>':empty("لا توجد حركات مالية بعد."))+'</section>';
+  }
+  async function saveCashReconciliation() {
+    if(saving)return;
+    const date=today();
+    if(isPeriodLocked(date)){toast("الفترة الحالية مقفلة ولا يمكن تسجيل مطابقة فيها.","error");return;}
+    const opening=num($("reconOpeningCash").value);
+    if($("reconCountedCash").value.trim()===""){toast("أدخل النقدية الفعلية بعد الجرد.","error");return;}
+    const counted=num($("reconCountedCash").value);
+    if(opening<0||counted<0){toast("القيم النقدية لا يمكن أن تكون سالبة.","error");return;}
+    const totals=cashTotalsForDate(date);
+    const expected=opening+totals.cashIn-totals.cashOut;
+    const payload={user_id:session.user.id,reconciliation_date:date,opening_cash:opening,cash_in:totals.cashIn,cash_out:totals.cashOut,expected_cash:expected,counted_cash:counted,bank_in:totals.bankIn,bank_out:totals.bankOut,notes:$("reconNotes").value.trim(),updated_by:session.user.id};
+    const result=await db.from("cash_reconciliations").upsert(payload,{onConflict:"user_id,reconciliation_date"}).select("*").single();
+    if(result.error){toast("تعذر حفظ المطابقة: "+result.error.message,"error");return;}
+    const index=cashReconciliations.findIndex(r=>r.reconciliation_date===date);
+    if(index>=0)cashReconciliations[index]=result.data;else cashReconciliations.unshift(result.data);
+    await writeAuditEvent({event_type:"update",entity_type:"cash_reconciliations",entity_id:result.data.id,description:"مطابقة الخزينة ليوم "+date,after_data:{opening_cash:opening,cash_in:totals.cashIn,cash_out:totals.cashOut,expected_cash:expected,counted_cash:counted,cash_difference:counted-expected}});
+    render();
+    const difference=counted-expected;
+    toast(Math.abs(difference)<0.005?"تمت مطابقة الخزينة دون فرق.":"تم حفظ المطابقة ويوجد فرق "+money(difference)+".",Math.abs(difference)<0.005?"success":"error");
+  }
+
   function renderOverview() {
     const m = metrics();
     const recent = (state.cars || []).slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))).slice(0,4);
