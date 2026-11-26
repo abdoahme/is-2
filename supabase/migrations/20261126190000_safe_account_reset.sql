@@ -115,6 +115,7 @@ begin
 
   -- Delete all rows for this account in one statement so self-referencing
   -- reversal links are checked after the complete account ledger is removed.
+  delete from public.financial_transactions where user_id = v_user and reversal_of is not null;
   delete from public.financial_transactions where user_id = v_user;
   get diagnostics v_deleted_transactions = row_count;
 
