@@ -74,16 +74,31 @@ module.exports = async function handler(req, res) {
       message
     ].join("\n\n");
 
-    const aiResponse = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + MODEL + ":generateContent", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: "أنت مستشار إداري مالي حذر. لا تكشف أسرارًا ولا تطلب كلمات مرور أو مفاتيح API." }] },
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.35, maxOutputTokens: 900 }
-      }),
-      signal: AbortSignal.timeout(30000)
-    });
+    // Retry one time for transient Gemini availability/server failures only.
+    // Do not retry quota, authentication, permission, or invalid-request responses.
+    let aiResponse;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      aiResponse = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + MODEL + ":generateContent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: "أنت مستشار إداري مالي حذر. لا تكشف أسرارًا ولا تطلب كلمات مرور أو مفاتيح API." }] },
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.35, maxOutputTokens: 900 }
+        }),
+        signal: AbortSignal.timeout(25000)
+      });
+
+      const transientFailure = [500, 502, 503, 504].includes(aiResponse.status);
+      if (!transientFailure || attempt === 1) break;
+
+      const retryAfterSeconds = Number(aiResponse.headers.get("retry-after"));
+      const retryDelay = Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
+        ? Math.min(1500, Math.max(300, retryAfterSeconds * 1000))
+        : 800;
+      await new Promise((resolve) => setTimeout(resolve, retryDelay));
+    }
+
     const result = await aiResponse.json().catch(() => ({}));
     if (!aiResponse.ok) {
       const providerError = result && result.error || {};
