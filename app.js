@@ -28,6 +28,16 @@
     const n = Number(normalized);
     return Number.isFinite(n) ? n : 0;
   };
+  function isValidNumericInput(value) {
+    const raw=String(value==null?"":value).trim();
+    if(!raw)return true;
+    const normalized=raw
+      .replace(/[٠-٩]/g,d=>String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
+      .replace(/[۰-۹]/g,d=>String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)))
+      .replace(/\u066B/g,".")
+      .replace(/[\u066C,\s\u00A0]/g,"");
+    return /^[-+]?\d+(\.\d+)?$/.test(normalized);
+  }
   const money = (value) => num(value).toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 2}) + (uiLanguage==="en" ? " EGP" : " ج.م");
   const esc = (value) => String(value == null ? "" : value).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const dateText = (value) => value ? esc(value) : "—";
