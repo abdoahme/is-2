@@ -355,6 +355,21 @@
         reference:item.receiptNo||"",source_type:"expense",source_id:String(item.id),is_legacy:false
       });
     });
+    (sourceState.cars||[]).filter(car=>String(car.status||"")==="كاش" && amount(car.salePrice)>0 && car.id).forEach(car=>{
+      const reversed=new Set(financialTransactions.filter(tx=>tx.reversal_of).map(tx=>String(tx.reversal_of)));
+      const paid=financialTransactions.filter(tx=>String(tx.car_id||"")===String(car.id) &&
+        tx.category==="car_collection" && !reversed.has(String(tx.id))
+      ).reduce((sum,tx)=>sum+(tx.direction==="inflow"?amount(tx.amount):-amount(tx.amount)),0);
+      const remaining=Math.max(0,amount(car.salePrice)-paid);
+      if(remaining>0.005 && /^\d{4}-\d{2}-\d{2}$/.test(String(car.date||""))){
+        output.push({
+          user_id:session.user.id,transaction_date:car.date,direction:"inflow",category:"car_collection",
+          payment_method:"cash",amount:remaining,car_id:String(car.id),person_name:car.customer||"",
+          description:"تحصيل نقدي كامل حسب حالة السيارة كاش",source_type:"car_cash",
+          source_id:String(car.id),is_legacy:false
+        });
+      }
+    });
     (sourceState.capital||[]).forEach(item=>{
       if (!item || !item.id || !/^\d{4}-\d{2}-\d{2}$/.test(String(item.date||""))) return;
       if (amount(item.deposited)>0) output.push({
@@ -378,7 +393,7 @@
     const desired=desiredAppCashMovements(sourceState);
     const reversed=new Set(financialTransactions.filter(t=>t.reversal_of).map(t=>String(t.reversal_of)));
     const active=financialTransactions.filter(t=>
-      ["expense","capital"].includes(t.source_type) && t.category!=="reversal" && !reversed.has(String(t.id))
+      ["expense","capital","car_cash"].includes(t.source_type) && t.category!=="reversal" && !reversed.has(String(t.id))
     );
     const desiredGroups=new Map();
     desired.forEach(item=>{
@@ -453,7 +468,11 @@
     auditEntries=results[2].data||[];
     backupEntries=results[3].data||[];
     financialLedgerLoaded=true;
-    await syncCashbookWithAppState(state);
+    try { await syncCashbookWithAppState(state); }
+    catch(syncError) {
+      console.warn("cashbook initial synchronization pending",syncError.message);
+      toast("تم تحميل البيانات، لكن بعض الحركات القديمة تحتاج مزامنة. راجع دفتر الحركة.", "error");
+    }
     setSync("تم تحميل الدفاتر","");
 
     try{
@@ -915,6 +934,7 @@
     auditClosing("close","month",key,"",snapshot);
     const saved = await saveState(true);
     if (!saved) { state=previous;render();toast("تعذر حفظ التقفيل في قاعدة البيانات.","error");return; }
+    await writeAuditEvent({event_type:"close",entity_type:"month_closing",entity_id:key,description:"تقفيل "+monthLabel(key),after_data:snapshot});
     render();
     toast("تم تقفيل "+monthLabel(key)+" وحفظ اللقطة المالية.", "success");
   }
@@ -940,6 +960,7 @@
     delete state.closings.months[key];
     const saved = await saveState(true);
     if (!saved) { state=previous;render();toast("تعذر حفظ إعادة الفتح.","error");return; }
+    await writeAuditEvent({event_type:"reopen",entity_type:"month_closing",entity_id:key,description:"إعادة فتح "+monthLabel(key)+": "+String(reason).trim(),before_data:closure});
     render();
     toast("تمت إعادة فتح الشهر وتسجيل السبب في سجل المراجعة.", "success");
   }
@@ -978,6 +999,7 @@
     auditClosing("close","year",year,"",snapshot);
     const saved = await saveState(true);
     if (!saved) { state=previous;render();toast("تعذر حفظ التقفيل السنوي.","error");return; }
+    await writeAuditEvent({event_type:"close",entity_type:"year_closing",entity_id:year,description:"تقفيل السنة "+year,after_data:snapshot});
     render();
     toast("تم تقفيل سنة "+year+" وحفظ اللقطة المالية.", "success");
   }
@@ -999,6 +1021,7 @@
     delete state.closings.annual[year];
     const saved = await saveState(true);
     if (!saved) { state=previous;render();toast("تعذر حفظ إعادة فتح السنة.","error");return; }
+    await writeAuditEvent({event_type:"reopen",entity_type:"year_closing",entity_id:year,description:"إعادة فتح السنة "+year+": "+String(reason).trim(),before_data:closure});
     render();
     toast("تمت إعادة فتح السنة. افتح الأشهر المطلوبة منفردة عند الحاجة.", "success");
   }
@@ -1100,7 +1123,10 @@
     const daily=cashTotalsForDate(today());
     const reconciliation=cashReconciliations.find(r=>r.reconciliation_date===today());
     const previous=cashReconciliations.filter(r=>r.reconciliation_date<today()).sort((a,b)=>b.reconciliation_date.localeCompare(a.reconciliation_date))[0];
-    const opening=reconciliation?amount(reconciliation.opening_cash):(previous?amount(previous.counted_cash):0);
+    const cashSincePrevious=previous?financialTransactions.filter(tx=>
+      tx.transaction_date>previous.reconciliation_date && tx.transaction_date<today() && tx.payment_method==="cash"
+    ).reduce((sum,tx)=>sum+(tx.direction==="inflow"?amount(tx.amount):-amount(tx.amount)),0):0;
+    const opening=reconciliation?amount(reconciliation.opening_cash):(previous?amount(previous.counted_cash)+cashSincePrevious:0);
     const expected=reconciliation?amount(reconciliation.expected_cash):opening+daily.cashIn-daily.cashOut;
     const cards=rows.slice(0,100).map(t=>{
       const car=state.cars.find(c=>String(c.id)===String(t.car_id||""));
@@ -1218,7 +1244,7 @@
 
   async function createCloudBackup(type) {
     const payload={state:clone(state),financialTransactions:clone(financialTransactions),cashReconciliations:clone(cashReconciliations)};
-    const label=type==="daily"?"نسخة تلقائية يومية "+today():"نسخة يدوية "+new Date().toLocaleString("ar-EG");
+    const label=type==="daily"?"نسخة تلقائية يومية "+today():(type==="before_restore"?"نسخة قبل الاستعادة "+new Date().toLocaleString("ar-EG"):"نسخة يدوية "+new Date().toLocaleString("ar-EG"));
     const result=await db.from("app_backups").insert({
       user_id:session.user.id,created_by:session.user.id,backup_type:type,label,payload
     }).select("id,created_at,backup_type,label").single();
@@ -1965,6 +1991,21 @@
     if(!btn)return;
     const action=btn.dataset.action;
     if(action==="add")openEditor(btn.dataset.collection);
+    else if(action==="add-financial-transaction")openEditor("financialTransactions");
+    else if(action==="reverse-financial-transaction"){
+      const tx=financialTransactions.find(item=>String(item.id)===String(btn.dataset.id));
+      if(!tx){toast("الحركة غير موجودة.","error");return;}
+      if(financialTransactions.some(item=>String(item.reversal_of||"")===String(tx.id))){toast("هذه الحركة سبق عكسها.","error");return;}
+      const reason=prompt("اكتب سبب عكس الحركة المالية:");
+      if(reason===null)return;
+      if(String(reason).trim().length<4){toast("اكتب سببًا واضحًا (4 أحرف على الأقل).","error");return;}
+      if(!confirm("سيتم إنشاء قيد عكسي ولن يتم حذف الحركة الأصلية. هل تريد المتابعة؟"))return;
+      try{
+        await reverseFinancialTransaction(tx,String(reason).trim());
+        await writeAuditEvent({event_type:"reversal",entity_type:"financial_transactions",entity_id:tx.id,description:"عكس حركة مالية: "+String(reason).trim(),before_data:tx});
+        render();toast("تم تسجيل القيد العكسي مع الاحتفاظ بالحركة الأصلية.","success");
+      }catch(error){toast("تعذر عكس الحركة: "+error.message,"error");}
+    }
     else if(action==="add-partner-payout") {
       if (!partnerBalances().some(x=>x.balance>0)) { toast("لا يوجد رصيد متاح للسحب حالياً.", "error"); return; }
       openEditor("partnerPayouts");
