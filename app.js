@@ -43,6 +43,9 @@
         {key:"date",label:"تاريخ الحركة",type:"date"},
         {key:"chassis",label:"رقم الشاسيه"},
         {key:"purchasePrice",label:"سعر الشراء",type:"number"},
+        {key:"partnerName",label:"اسم الشريك المساهم (اختياري)"},
+        {key:"partnerContribution",label:"مبلغ مساهمة الشريك",type:"number"},
+        {key:"partnerPaymentMethod",label:"طريقة إيداع الشراكة",type:"select",options:["نقداً بالخزينة","تحويل بنكي","شيك بنكي","إيداع بنكي مباشر"]},
         {key:"prepCost",label:"مصاريف التجهيز",type:"number"},
         {key:"salePrice",label:"إجمالي سعر البيع",type:"number"},
         {key:"paidAmount",label:"المبلغ المدفوع",type:"number"},
@@ -91,6 +94,16 @@
         {key:"profitLossType",label:"نوع الربح / الخسارة",type:"select",options:["","ربح من شخص","خسارة لشخص"]},
         {key:"profitLossAmount",label:"قيمة الربح / الخسارة",type:"number"},
         {key:"description",label:"البيان",type:"textarea",full:true}
+      ]
+    },
+    partnerPayouts: {
+      title:"سحب من رصيد شريك",
+      fields:[
+        {key:"date",label:"تاريخ السحب",type:"date"},
+        {key:"partner",label:"الشريك",type:"select",options:[],required:true},
+        {key:"amount",label:"مبلغ السحب",type:"number",required:true},
+        {key:"method",label:"طريقة الصرف",type:"select",options:["نقداً من الخزينة","تحويل بنكي","شيك بنكي","أخرى"]},
+        {key:"description",label:"بيان السحب",type:"textarea",full:true}
       ]
     }
   };
@@ -267,6 +280,55 @@
     const capitalOut = state.capital.reduce((sum,c)=>sum+amount(c.withdrawn),0);
     return {cars:cars.length, inventory:inventory.length, sold:sold.length, purchase, profit, carRemainingTotal, receivableDebts, payableDebts, expenses, capitalIn, capitalOut, capitalNet:capitalIn-capitalOut, totalReceivables:carRemainingTotal+receivableDebts};
   }
+
+  function partnerBalances() {
+    const balances = new Map();
+    const get = (name) => {
+      const key = String(name || "").trim();
+      if (!key) return null;
+      if (!balances.has(key)) balances.set(key, {partner:key, contributed:0, withdrawn:0});
+      return balances.get(key);
+    };
+    (state.partnerMovements || []).forEach((movement) => {
+      if (movement.type !== "contribution" && movement.type !== "payout") return;
+      const item = get(movement.partner);
+      if (!item) return;
+      if (movement.type === "contribution") item.contributed += amount(movement.amount);
+      if (movement.type === "payout") item.withdrawn += amount(movement.amount);
+    });
+    (state.capital || []).forEach((entry) => {
+      if (entry.linkedMovementId || !entry.partner) return;
+      const item = get(entry.partner);
+      if (!item) return;
+      const deposited = amount(entry.deposited);
+      const withdrawn = amount(entry.withdrawn);
+      const sameMovementExists = (type, value) => (state.partnerMovements || []).some((movement) =>
+        movement.type === type &&
+        String(movement.partner || "").trim() === String(entry.partner || "").trim() &&
+        amount(movement.amount) === value &&
+        String(movement.date || "") === String(entry.date || "")
+      );
+      if (deposited > 0 && !sameMovementExists("contribution", deposited)) item.contributed += deposited;
+      if (withdrawn > 0 && !sameMovementExists("payout", withdrawn)) item.withdrawn += withdrawn;
+    });
+    return Array.from(balances.values()).map((item) => Object.assign({}, item, {
+      balance:item.contributed - item.withdrawn
+    })).sort((a,b)=>a.partner.localeCompare(b.partner,"ar"));
+  }
+
+  function renderPartnerBalances() {
+    const active = partnerBalances();
+    const canWithdraw = active.some((item) => item.balance > 0);
+    const action = '<button class="btn btn-primary btn-small" data-action="add-partner-payout"' +
+      (canWithdraw ? '' : ' disabled') + '>+ سحب من رصيد شريك</button>';
+    return '<section class="panel section-gap"><div class="partner-balance-head"><div><h3>أرصدة الشركاء المتاحة</h3><p class="panel-note">الرصيد = مساهمات الشريك في السيارات ورأس المال ناقص دفعات السحب السابقة.</p></div><div class="page-actions">' + action + '</div></div>' +
+      (active.length ? '<div class="summary-list">' + active.map((item) =>
+        '<div class="summary-line"><span>' + esc(item.partner) + ' · مساهمات ' + money(item.contributed) + ' · مسحوبات ' + money(item.withdrawn) + '</span><strong class="' +
+        (item.balance > 0 ? 'positive' : (item.balance < 0 ? 'negative' : '')) + '">' + money(item.balance) + '</strong></div>'
+      ).join('') + '</div>' : empty("لم تُسجّل مساهمات شركاء بعد. أضف اسم الشريك ومبلغ مساهمته عند تسجيل شراء السيارة.")) +
+      '</section>';
+  }
+
   function badge(text, cls) { return '<span class="badge ' + (cls || "") + '">' + esc(text) + '</span>'; }
   function heading(title, subtitle, action) {
     return '<div class="page-heading"><div><h2>' + esc(title) + '</h2><p>' + esc(subtitle || "") + '</p></div><div class="page-actions">' + (action || "") + '</div></div>';
@@ -278,7 +340,10 @@
   function carCard(c) {
     const remaining = carRemaining(c);
     const cost = amount(c.purchasePrice) + amount(c.prepCost);
-    return '<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">' + esc(c.model || "سيارة بدون اسم") + '</div><div class="data-card-sub">' + dateText(c.date) + ' · ' + esc(c.customer || "بدون عميل") + '</div></div>' + badge(c.status || "قيد البيع", c.status==="كاش"||c.status==="مباع"?"ok":(remaining>0?"warn":"gold")) + '</div><div class="data-card-grid"><div class="data-cell"><span>تكلفة الشراء والتجهيز</span><strong>' + money(cost) + '</strong></div><div class="data-cell"><span>سعر البيع</span><strong>' + money(c.salePrice) + '</strong></div><div class="data-cell"><span>المدفوع</span><strong class="positive">' + money(carPaid(c)) + '</strong></div><div class="data-cell"><span>المتبقي</span><strong class="' + (remaining>0?"negative":"positive") + '">' + money(remaining) + '</strong></div></div><div class="card-actions"><button class="btn btn-outline btn-small" data-action="edit" data-collection="cars" data-id="' + esc(c.id) + '">تعديل</button><button class="btn btn-danger btn-small" data-action="delete" data-collection="cars" data-id="' + esc(c.id) + '">حذف</button></div></article>';
+    const shareInfo = amount(c.partnerContribution) > 0
+      ? '<div class="data-cell"><span>الشريك المساهم</span><strong>' + esc(c.partnerName || "—") + '</strong></div><div class="data-cell"><span>مبلغ الشراكة</span><strong class="positive">' + money(c.partnerContribution) + '</strong></div>'
+      : '';
+    return '<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">' + esc(c.model || "سيارة بدون اسم") + '</div><div class="data-card-sub">' + dateText(c.date) + ' · ' + esc(c.customer || "بدون عميل") + '</div></div>' + badge(c.status || "قيد البيع", c.status==="كاش"||c.status==="مباع"?"ok":(remaining>0?"warn":"gold")) + '</div><div class="data-card-grid"><div class="data-cell"><span>تكلفة الشراء والتجهيز</span><strong>' + money(cost) + '</strong></div><div class="data-cell"><span>سعر البيع</span><strong>' + money(c.salePrice) + '</strong></div><div class="data-cell"><span>المدفوع</span><strong class="positive">' + money(carPaid(c)) + '</strong></div><div class="data-cell"><span>المتبقي</span><strong class="' + (remaining>0?"negative":"positive") + '">' + money(remaining) + '</strong></div>' + shareInfo + '</div><div class="card-actions"><button class="btn btn-outline btn-small" data-action="edit" data-collection="cars" data-id="' + esc(c.id) + '">تعديل</button><button class="btn btn-danger btn-small" data-action="delete" data-collection="cars" data-id="' + esc(c.id) + '">حذف</button></div></article>';
   }
   function expenseCard(e) {
     return '<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">' + esc(e.description || e.category || "مصروف") + '</div><div class="data-card-sub">' + esc(e.category || "عام") + ' · ' + dateText(e.date) + '</div></div>' + badge(e.paymentMethod || "غير محدد","gold") + '</div><div class="data-card-grid"><div class="data-cell"><span>المبلغ</span><strong class="negative">' + money(e.amount) + '</strong></div><div class="data-cell"><span>المستلم / المورد</span><strong>' + esc(e.recipient || "—") + '</strong></div><div class="data-cell"><span>طريقة الدفع</span><strong>' + esc(e.paymentMethod || "—") + '</strong></div><div class="data-cell"><span>ملاحظات</span><strong>' + esc(e.notes || "—") + '</strong></div></div><div class="card-actions"><button class="btn btn-outline btn-small" data-action="edit" data-collection="expenses" data-id="' + esc(e.id) + '">تعديل</button><button class="btn btn-danger btn-small" data-action="delete" data-collection="expenses" data-id="' + esc(e.id) + '">حذف</button></div></article>';
@@ -377,22 +442,22 @@
     }).slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
     const sums = {contribution:0,payout:0,profit:0,loss:0};
     source.forEach(m => { if (sums[m.type] !== undefined) sums[m.type] += amount(m.amount); });
-    const labels = {contribution:"مساهمة / إيداع",payout:"مسحوبات",profit:"أرباح",loss:"خسائر"};
-    return heading("حركة الشركاء","سجل المساهمات والمسحوبات والأرباح والخسائر المرتبطة بحركات رأس المال وشراكات السيارات.") +
+    const labels = {contribution:"مساهمة / إيداع",payout:"دفعات سحب الشركاء",profit:"أرباح",loss:"خسائر"};
+    const cards = filtered.length ? '<div class="data-list">' + filtered.map(m=>{
+      const car = state.cars.find(c => String(c.id) === String(m.sourceCarId));
+      const label = labels[m.type] || m.type || "حركة شريك";
+      const color = m.type==="contribution" || m.type==="profit" ? "ok" : "warn";
+      return '<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">' + esc(m.partner || "شريك غير محدد") + '</div><div class="data-card-sub">' + esc(m.note || label) + '</div></div>' + badge(label,color) + '</div><div class="data-card-grid"><div class="data-cell"><span>قيمة الحركة</span><strong class="' + (m.type==="payout"?"negative":"positive") + '">' + money(m.amount) + '</strong></div><div class="data-cell"><span>التاريخ</span><strong>' + dateText(m.date) + '</strong></div><div class="data-cell"><span>السيارة المرتبطة</span><strong>' + esc(car ? car.model : "—") + '</strong></div><div class="data-cell"><span>نوع المصدر</span><strong>' + esc(m.sourceCarId ? "شراكة سيارة" : (m.type==="payout"?"سحب من رأس المال":"رأس مال")) + '</strong></div></div></article>';
+    }).join("") + '</div>' : empty("لا توجد حركات شركاء مسجلة.");
+    return heading("حركة الشركاء","متابعة مساهمات كل شريك وأرصدته ودفعات السحب المسجلة.",'<button class="btn btn-primary btn-small" data-action="add-partner-payout"' + (partnerBalances().some(x=>x.balance>0)?"":' disabled') + '>+ تسجيل دفعة سحب</button>') +
       '<div class="kpi-grid">' +
       kpi("إجمالي المساهمات",money(sums.contribution),"إيداعات ومساهمات","green") +
-      kpi("إجمالي المسحوبات",money(sums.payout),"مبالغ خارجة للشركاء","red") +
+      kpi("دفعات سحب الشركاء",money(sums.payout),"مبالغ صُرفت للشركاء","red") +
       kpi("الأرباح المسجلة",money(sums.profit),"أرباح مرتبطة بالحركات","gold") +
       kpi("الخسائر المسجلة",money(sums.loss),"خسائر مرتبطة بالحركات","") +
-      '</div>' +
-      (filtered.length ? '<div class="data-list">' + filtered.map(m=>{
-        const car = state.cars.find(c => String(c.id) === String(m.sourceCarId));
-        const label = labels[m.type] || m.type || "حركة شريك";
-        const color = m.type==="contribution" || m.type==="profit" ? "ok" : "warn";
-        return '<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">' + esc(m.partner || "شريك غير محدد") + '</div><div class="data-card-sub">' + esc(m.note || label) + '</div></div>' + badge(label,color) + '</div><div class="data-card-grid"><div class="data-cell"><span>قيمة الحركة</span><strong>' + money(m.amount) + '</strong></div><div class="data-cell"><span>التاريخ</span><strong>' + dateText(m.date) + '</strong></div><div class="data-cell"><span>السيارة المرتبطة</span><strong>' + esc(car ? car.model : "—") + '</strong></div><div class="data-cell"><span>نوع المصدر</span><strong>' + esc(m.sourceCarId ? "شراكة سيارة" : "رأس مال") + '</strong></div></div></article>';
-      }).join("") + '</div>' : empty("لا توجد حركات شركاء مسجلة."));
+      '</div>' + renderPartnerBalances() +
+      '<section class="panel section-gap"><h3>دفعات سحب الشركاء وسجل الحركات</h3><p class="panel-note">كل دفعة سحب تُسجَّل هنا وتُخصم في الوقت نفسه من رصيد الشريك ورأس المال.</p>' + cards + '</section>';
   }
-
   function renderReports() {
     const allYears = Array.from(new Set(
       [].concat(state.cars.map(x=>String(x.date||"").slice(0,4)),
@@ -469,7 +534,7 @@
     else if (currentView === "expenses") host.innerHTML = renderCollection("expenses","مصروفات التشغيل","تسجيل ومراجعة كل المصروفات الفعلية للمعرض.",expenseCard);
     else if (currentView === "debts") host.innerHTML = renderCollection("debts","الذمم والأقساط","المبالغ المستحقة للمعرض أو المستحقة عليه.",debtCard);
     else if (currentView === "capital") host.innerHTML = renderCollection("capital","رأس المال وحركة الخزينة","الإيداعات والمسحوبات وحركة الشركاء.",capitalCard) +
-      '<section class="panel section-gap"><h3>ملخص رأس المال</h3><div class="summary-list"><div class="summary-line"><span>إجمالي الإيداعات</span><strong class="positive">' + money(metrics().capitalIn) + '</strong></div><div class="summary-line"><span>إجمالي المسحوبات</span><strong class="negative">' + money(metrics().capitalOut) + '</strong></div><div class="summary-line"><span>صافي الحركة</span><strong>' + money(metrics().capitalNet) + '</strong></div></div></section>';
+      '<section class="panel section-gap"><h3>ملخص رأس المال</h3><div class="summary-list"><div class="summary-line"><span>إجمالي الإيداعات</span><strong class="positive">' + money(metrics().capitalIn) + '</strong></div><div class="summary-line"><span>إجمالي المسحوبات</span><strong class="negative">' + money(metrics().capitalOut) + '</strong></div><div class="summary-line"><span>صافي الحركة</span><strong>' + money(metrics().capitalNet) + '</strong></div></div></section>' + renderPartnerBalances();
     else if (currentView === "partners") host.innerHTML = renderPartners();
     else if (currentView === "reports") host.innerHTML = renderReports();
     else if (currentView === "receivables") host.innerHTML = renderReceivables();
@@ -485,10 +550,15 @@
     editingCollection = collection;
     editingId = id || null;
     const item = id ? (state[collection] || []).find(x=>String(x.id)===String(id)) : null;
-    const defaults = {id:makeId(),date:today(),dueDate:today(),status:collection==="cars"?"قيد البيع":(collection==="debts"?"قيد المتابعة":""),paidAmount:0,purchasePrice:0,prepCost:0,salePrice:0,amount:0,totalAmount:0,deposited:0,withdrawn:0,profitLossAmount:0};
+    const defaults = {id:makeId(),date:today(),dueDate:today(),status:collection==="cars"?"قيد البيع":(collection==="debts"?"قيد المتابعة":""),paidAmount:0,purchasePrice:0,prepCost:0,salePrice:0,amount:0,totalAmount:0,deposited:0,withdrawn:0,profitLossAmount:0,partnerContribution:0};
     const value = item || defaults;
+    const fields = collection === "partnerPayouts"
+      ? schema.fields.map(field => field.key === "partner"
+        ? Object.assign({},field,{options:partnerBalances().filter(x=>x.balance>0).map(x=>x.partner)})
+        : field)
+      : schema.fields;
     $("editorTitle").textContent = (item ? "تعديل " : "إضافة ") + schema.title;
-    $("editorFields").innerHTML = schema.fields.map(field=>{
+    $("editorFields").innerHTML = fields.map(field=>{
       const val = value[field.key] == null ? "" : value[field.key];
       const cls = field.full ? "full" : "";
       let control = "";
@@ -504,12 +574,47 @@
     $("editorDialog").showModal();
   }
 
+  function syncCarPartnerContribution(car, previousCar) {
+    const contribution = amount(car.partnerContribution);
+    if (contribution <= 0) {
+      if (previousCar && previousCar.partnerMovementId) throw new Error("هذه السيارة لها مساهمة شريك مسجلة بالفعل. لا يمكن تصفيرها من تعديل السيارة؛ سجّل أي تسوية كحركة مستقلة.");
+      return;
+    }
+    const partner = String(car.partnerName || "").trim();
+    if (!partner) throw new Error("اكتب اسم الشريك قبل تسجيل مبلغ الشراكة.");
+    const movementId = previousCar && previousCar.partnerMovementId ? previousCar.partnerMovementId : makeId();
+    const capitalId = previousCar && previousCar.partnerCapitalId ? previousCar.partnerCapitalId : makeId();
+    const movement = {
+      id:movementId, partner, type:"contribution", amount:contribution, date:car.date || today(),
+      note:"مساهمة في شراء السيارة " + String(car.model || ""),
+      sourceCarId:car.id, sourceCapitalId:capitalId
+    };
+    const capitalEntry = {
+      id:capitalId, date:car.date || today(), partner,
+      movementType:"مساهمة شريك في شراء سيارة",
+      deposited:contribution, withdrawn:0,
+      method:car.partnerPaymentMethod || "نقداً بالخزينة",
+      description:"مساهمة " + partner + " في شراء السيارة " + String(car.model || ""),
+      sourceCarId:car.id, linkedMovementId:movementId
+    };
+    const movementIndex = state.partnerMovements.findIndex(x=>String(x.id)===String(movementId));
+    if (movementIndex >= 0) state.partnerMovements[movementIndex] = movement;
+    else state.partnerMovements.unshift(movement);
+    const capitalIndex = state.capital.findIndex(x=>String(x.id)===String(capitalId));
+    if (capitalIndex >= 0) state.capital[capitalIndex] = capitalEntry;
+    else state.capital.unshift(capitalEntry);
+    car.partnerMovementId = movementId;
+    car.partnerCapitalId = capitalId;
+  }
   async function submitEditor(event) {
     event.preventDefault();
     if (!editingCollection) return;
     const collection = editingCollection;
     const schema = schemas[collection];
     const previous = clone(state);
+    const previousCar = collection==="cars" && editingId
+      ? clone(state.cars.find(x=>String(x.id)===String(editingId)) || null)
+      : null;
     const form = new FormData($("editorForm"));
     const data = {};
     schema.fields.forEach(field=>{
@@ -520,16 +625,61 @@
       toast("المبلغ المدفوع لا يمكن أن يتجاوز إجمالي سعر البيع.", "error");
       return;
     }
+    if (collection==="cars" && amount(data.partnerContribution)>0 && !data.partnerName) {
+      toast("اكتب اسم الشريك المساهم حتى يتم تسجيل حصته في رأس المال.", "error");
+      return;
+    }
+    if (collection==="cars" && previousCar && previousCar.partnerMovementId && amount(data.partnerContribution)<=0) {
+      toast("لا يمكن حذف مساهمة مسجلة من تعديل السيارة. استخدم حركة تسوية مستقلة للحفاظ على السجل المالي.", "error");
+      return;
+    }
     if (collection==="debts" && data.paidAmount > data.totalAmount) {
       toast("المبلغ المسدد لا يمكن أن يتجاوز إجمالي الذمة.", "error");
       return;
     }
-    if (editingId) {
-      const idx = state[collection].findIndex(x=>String(x.id)===String(editingId));
-      if (idx>=0) state[collection][idx] = Object.assign({},state[collection][idx],data);
+    if (collection==="partnerPayouts") {
+      const available = partnerBalances().find(x=>x.partner===data.partner);
+      if (!available || amount(data.amount)<=0) {
+        toast("اختر شريكاً لديه رصيد متاح وأدخل مبلغاً صحيحاً.", "error");
+        return;
+      }
+      if (amount(data.amount) > available.balance + 0.0001) {
+        toast("مبلغ السحب أكبر من رصيد الشريك المتاح (" + money(available.balance) + ").", "error");
+        return;
+      }
+      const movementId = makeId();
+      const capitalId = makeId();
+      const note = data.description || "دفعة سحب من رصيد الشريك";
+      state.partnerMovements.unshift({
+        id:movementId, partner:data.partner, type:"payout", amount:amount(data.amount),
+        date:data.date || today(), note, sourceCapitalId:capitalId, method:data.method || ""
+      });
+      state.capital.unshift({
+        id:capitalId, date:data.date || today(), partner:data.partner,
+        movementType:"سحب شريك من رأس المال", deposited:0, withdrawn:amount(data.amount),
+        method:data.method || "نقداً من الخزينة", description:note, linkedMovementId:movementId
+      });
     } else {
-      data.id = makeId();
-      state[collection].unshift(data);
+      if (editingId) {
+        const idx = state[collection].findIndex(x=>String(x.id)===String(editingId));
+        if (idx>=0) state[collection][idx] = Object.assign({},state[collection][idx],data);
+      } else {
+        data.id = makeId();
+        state[collection].unshift(data);
+      }
+      if (collection==="cars") {
+        const savedCar = state.cars.find(x=>String(x.id)===String(editingId || data.id));
+        try {
+          if (savedCar) syncCarPartnerContribution(savedCar, previousCar);
+          const negativeBalance = partnerBalances().find(x=>x.balance < -0.0001);
+          if (negativeBalance) throw new Error("تعديل المساهمة سيجعل رصيد الشريك " + negativeBalance.partner + " بالسالب. راجع دفعات السحب أولاً.");
+        } catch (error) {
+          state = previous;
+          toast(error.message || "تعذر ربط مساهمة الشريك.", "error");
+          render();
+          return;
+        }
+      }
     }
     $("editorDialog").close();
     render();
@@ -537,7 +687,6 @@
     if (!ok) { state = previous; render(); }
     else { editingCollection=null; editingId=null; render(); }
   }
-
   async function deleteItem(collection,id) {
     const item = (state[collection] || []).find(x=>String(x.id)===String(id));
     if (!item || !confirm("هل تريد حذف هذا السجل؟ لا يمكن التراجع بعد الحفظ.")) return;
@@ -690,6 +839,10 @@
     if(!btn)return;
     const action=btn.dataset.action;
     if(action==="add")openEditor(btn.dataset.collection);
+    else if(action==="add-partner-payout") {
+      if (!partnerBalances().some(x=>x.balance>0)) { toast("لا يوجد رصيد متاح للسحب حالياً.", "error"); return; }
+      openEditor("partnerPayouts");
+    }
     else if(action==="edit")openEditor(btn.dataset.collection,btn.dataset.id);
     else if(action==="delete")await deleteItem(btn.dataset.collection,btn.dataset.id);
     else if(action==="record-request")await recordRequest(btn.dataset.id);
