@@ -43,7 +43,7 @@
     const map=uiLanguage==="en"?LANGUAGE_PAIRS:LANGUAGE_PAIRS.map(pair=>[pair[1],pair[0]]);
     map.slice().sort((a,b)=>b[0].length-a[0].length).forEach(pair=>{
       if(!pair[0]||pair[0]===pair[1])return;
-      const singleWord=!/\\s/.test(pair[0])&&pair[0].length<=8;
+      const singleWord=!pair[0].includes(" ")&&pair[0].length<=8;
       if(singleWord){if(output.trim()===pair[0])output=output.replace(pair[0],pair[1]);}
       else output=output.split(pair[0]).join(pair[1]);
     });
