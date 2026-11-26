@@ -3,3 +3,42 @@
 @media(max-width:1050px){.kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.data-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:720px){.app-shell{padding:0 13px 18px}.topbar{min-height:65px}.brand-lockup span{font-size:9px}.top-actions{gap:6px}.sync-badge,.role-badge{font-size:9px;padding:5px 7px}.welcome-strip{align-items:stretch;flex-direction:column;padding:20px 0 14px}.welcome-strip h1{font-size:22px}.welcome-actions{width:100%}.search-input{width:100%;flex:1;min-width:0}.main-nav{margin-bottom:13px;padding:6px}.nav-btn{font-size:10px;padding:8px 10px}.kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.kpi{padding:13px}.kpi .value{font-size:17px}.two-col{grid-template-columns:1fr}.page-heading{align-items:start;flex-direction:column}.data-card{padding:11px}.data-card-title{font-size:12px}.data-card-grid{gap:7px}.data-cell strong{font-size:11px}.form-grid,.form-grid.two{grid-template-columns:1fr}.form-grid .full{grid-column:auto}.auth-card,.employee-card{padding:25px 19px}.employee-card{margin-top:35px}.link-grid{grid-template-columns:1fr}.app-footer{flex-direction:column}.editor-dialog{padding:17px}.dialog-actions .btn{flex:1}}
 @media print{body{background:#fff;color:#111}.topbar,.main-nav,.welcome-actions,.page-actions,.card-actions,.app-footer,.btn{display:none!important}.app-shell{width:100%;padding:0}.panel,.kpi,.data-card{background:#fff;border:1px solid #ddd;color:#111}.muted,.data-cell span{color:#555}.data-table th{background:#eee;color:#111}.data-table td{color:#111}.kpi .value{color:#111!important}}
+
+/* IS Motors - clean light appearance */
+:root{color-scheme:light;--bg:#f4f6fa;--panel:#fff;--panel2:#f8fafc;--line:#e2e7ef;--text:#202b3b;--muted:#718096;--gold:#96651f;--gold2:#875a19;--red:#c94755;--green:#16845a;--blue:#2878b8;--shadow:0 18px 55px rgba(24,39,64,.10)}
+html{background:var(--bg)}
+body{background:radial-gradient(ellipse at 80% -10%,rgba(214,173,99,.13),transparent 34%),var(--bg);color:var(--text)}
+.brand-mark{background:linear-gradient(145deg,#fff,#edf1f7);color:#875a19;box-shadow:inset 0 0 18px rgba(214,173,99,.12),0 8px 22px rgba(25,40,65,.08)}
+.auth-card,.employee-card{background:linear-gradient(160deg,#fff,#f8fafd);border-color:var(--line)}
+.form-stack label,.form-grid label{color:#425168}
+.form-stack input,.form-grid input,.form-grid select,.form-grid textarea,.search-input{background:#fff;color:var(--text);border-color:#d7deea}
+.form-stack input:focus,.form-grid input:focus,.form-grid select:focus,.form-grid textarea:focus,.search-input:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(150,101,31,.12)}
+.btn-outline{border-color:#cbd4e1;color:var(--text);background:#fff}
+.btn-ghost{border-color:#e0e6ee;color:#46556c;background:#f4f6fa}
+.topbar{border-bottom-color:var(--line)}
+.main-nav{background:#fff;border-color:var(--line);box-shadow:0 5px 18px rgba(26,41,66,.04)}
+.nav-btn{color:#5e6d82}
+.nav-btn.active{background:linear-gradient(135deg,rgba(214,173,99,.20),rgba(214,173,99,.07));border-color:rgba(150,101,31,.28);color:#805515}
+.kpi{background:linear-gradient(145deg,#fff,#f8fafd);border-color:var(--line);box-shadow:0 6px 20px rgba(25,40,65,.035)}
+.panel{background:#fff;border-color:var(--line);box-shadow:0 6px 22px rgba(25,40,65,.035)}
+.data-card{background:#fff;border-color:#e1e7ef;box-shadow:0 4px 15px rgba(25,40,65,.025)}
+.data-card-grid .data-cell span,.muted,.page-heading p,.panel-note{color:var(--muted)}
+.data-card-title{color:#202b3b}
+.data-table th{background:#f0f3f8;color:#805515}
+.data-table td{color:#344258}
+.data-table th,.data-table td{border-bottom-color:#e5eaf1}
+.summary-line{border-bottom-color:#e9edf3}
+.empty-state{border-color:#d8e0ea;color:#77849a}
+.editor-dialog{background:#fff;color:var(--text);border-color:#d9e0ea}
+.editor-dialog::backdrop{background:rgba(29,42,62,.35);backdrop-filter:blur(3px)}
+.icon-btn{border-color:#dfe5ed;background:#f3f6fa;color:#4d5b70}
+.toast{background:#fff;color:var(--text);border-color:#d8e0ea;box-shadow:0 12px 40px rgba(25,40,65,.16)}
+.link-card{background:#fff;border-color:var(--line)}
+.link-card span{color:var(--muted)}
+.positive{color:var(--green)!important}
+.negative{color:var(--red)!important}
+.data-card-sub{color:#77849a}
+.auth-foot{border-color:#e4e9f0;color:#7a879a}
+.partner-balance-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:12px}
+.partner-balance-head h3{margin:0 0 5px}
+@media(max-width:720px){.partner-balance-head{align-items:flex-start;flex-direction:column}.partner-balance-head .page-actions{width:100%}.partner-balance-head .btn{width:100%}}
