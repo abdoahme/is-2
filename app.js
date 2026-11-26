@@ -1189,6 +1189,20 @@
     const labels={cash:"نقداً",bank_transfer:"تحويل بنكي",check:"شيك",card:"بطاقة",other:"غير محدد"};
     return labels[method]||method||"غير محدد";
   }
+  function printFinancialReceipt(transactionId) {
+    const tx=financialTransactions.find(item=>String(item.id)===String(transactionId));
+    if(!tx){toast("الحركة المالية غير موجودة.","error");return;}
+    const car=state.cars.find(item=>String(item.id)===String(tx.car_id||""));
+    const receiptNo=tx.reference||String(tx.id||"").slice(0,8);
+    const title=tx.direction==="inflow"?"إيصال استلام نقدية":"إيصال صرف نقدية";
+    const host=$("printReceipt");
+    host.innerHTML='<div class="receipt-sheet"><div class="receipt-brand"><div class="brand-mark">IS</div><div><strong>IS MOTORS</strong><span>نظام الإدارة والحسابات</span></div></div><div class="receipt-heading"><h1>'+title+'</h1><p>رقم الإيصال: '+esc(receiptNo)+'</p></div><div class="receipt-meta"><span>التاريخ: <b>'+dateText(tx.transaction_date)+'</b></span><span>طريقة الدفع: <b>'+esc(paymentMethodLabel(tx.payment_method))+'</b></span></div><div class="receipt-amount"><small>المبلغ</small><strong>'+money(tx.amount)+'</strong></div><div class="receipt-details"><div><span>اسم الطرف</span><strong>'+esc(tx.person_name||"—")+'</strong></div><div><span>نوع الحركة</span><strong>'+esc(transactionCategoryLabel(tx.category))+'</strong></div><div><span>السيارة المرتبطة</span><strong>'+esc(car?car.model:"—")+'</strong></div><div><span>المرجع</span><strong>'+esc(tx.reference||"—")+'</strong></div><div class="receipt-full"><span>البيان</span><strong>'+esc(tx.description||"—")+'</strong></div></div><div class="receipt-note">'+(tx.is_legacy?"حركة مرحّلة من سجلات سابقة.":"تم إصدار هذا الإيصال من دفتر الحركة المالي.")+'</div><div class="receipt-signatures"><div>المستلم / المسلم<br><small>الاسم والتوقيع</small></div><div>اعتماد الإدارة<br><small>التوقيع والختم</small></div></div><footer>IS Motors · إيصال صادر من النظام الإلكتروني</footer></div>';
+    document.body.classList.add("print-receipt-mode");
+    const cleanup=()=>{document.body.classList.remove("print-receipt-mode");host.innerHTML="";};
+    window.addEventListener("afterprint",cleanup,{once:true});
+    window.print();
+  }
+
   function renderCashbook() {
     const month=today().slice(0,7);
     const rows=financialTransactions.slice().sort((a,b)=>String(b.transaction_date||"").localeCompare(String(a.transaction_date||"")));
@@ -1206,7 +1220,7 @@
     const cards=rows.slice(0,100).map(t=>{
       const car=state.cars.find(c=>String(c.id)===String(t.car_id||""));
       const sign=t.direction==="inflow"?"+":"−";
-      return '<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">'+esc(transactionCategoryLabel(t.category))+'</div><div class="data-card-sub">'+dateText(t.transaction_date)+' · '+esc(t.person_name||"بدون اسم")+'</div></div>'+badge(t.direction==="inflow"?"وارد":"منصرف",t.direction==="inflow"?"ok":"warn")+'</div><div class="data-card-grid"><div class="data-cell"><span>القيمة</span><strong class="'+(t.direction==="inflow"?"positive":"negative")+'">'+sign+money(t.amount)+'</strong></div><div class="data-cell"><span>طريقة الدفع</span><strong>'+esc(paymentMethodLabel(t.payment_method))+'</strong></div><div class="data-cell"><span>السيارة</span><strong>'+esc(car?car.model:(t.car_id||"—"))+'</strong></div><div class="data-cell"><span>المرجع</span><strong>'+esc(t.reference||"—")+'</strong></div></div>'+(t.is_legacy?'<p class="panel-note">رصيد مرحّل من السجلات السابقة؛ تاريخ الدفعة الأصلي غير متاح.</p>':"")+'<div class="card-actions">'+(!t.reversal_of&&!financialTransactions.some(row=>String(row.reversal_of||"")===String(t.id))?'<button class="btn btn-danger btn-small" data-action="reverse-financial-transaction" data-id="'+esc(t.id)+'">عكس الحركة بسبب موثّق</button>':(t.reversal_of?badge("قيد عكسي","warn"):""))+'</div></article>';
+      return '<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">'+esc(transactionCategoryLabel(t.category))+'</div><div class="data-card-sub">'+dateText(t.transaction_date)+' · '+esc(t.person_name||"بدون اسم")+'</div></div>'+badge(t.direction==="inflow"?"وارد":"منصرف",t.direction==="inflow"?"ok":"warn")+'</div><div class="data-card-grid"><div class="data-cell"><span>القيمة</span><strong class="'+(t.direction==="inflow"?"positive":"negative")+'">'+sign+money(t.amount)+'</strong></div><div class="data-cell"><span>طريقة الدفع</span><strong>'+esc(paymentMethodLabel(t.payment_method))+'</strong></div><div class="data-cell"><span>السيارة</span><strong>'+esc(car?car.model:(t.car_id||"—"))+'</strong></div><div class="data-cell"><span>المرجع</span><strong>'+esc(t.reference||"—")+'</strong></div></div>'+(t.is_legacy?'<p class="panel-note">رصيد مرحّل من السجلات السابقة؛ تاريخ الدفعة الأصلي غير متاح.</p>':"")+'<div class="card-actions"><button class="btn btn-outline btn-small" data-action="print-financial-receipt" data-id="' + esc(t.id) + '">طباعة إيصال</button>'+(!t.reversal_of&&!financialTransactions.some(row=>String(row.reversal_of||"")===String(t.id))?'<button class="btn btn-danger btn-small" data-action="reverse-financial-transaction" data-id="'+esc(t.id)+'">عكس الحركة بسبب موثّق</button>':(t.reversal_of?badge("قيد عكسي","warn"):""))+'</div></article>';
     }).join("");
     return heading("دفتر الحركة والخزينة","دفتر موحد للمقبوضات والمدفوعات مع الاحتفاظ بالأثر التاريخي.",'<button class="btn btn-primary btn-small" data-action="add-financial-transaction">+ تسجيل حركة</button>')+
       '<div class="kpi-grid">'+kpi("الوارد خلال الشهر",money(inflow),"من أول الشهر","green")+kpi("المنصرف خلال الشهر",money(outflow),"من أول الشهر","red")+kpi("صافي الحركة",money(inflow-outflow),"الوارد ناقص المنصرف",inflow>=outflow?"blue":"red")+kpi("عدد الحركات",monthRows.length,"حركة خلال الشهر","gold")+'</div>'+
@@ -2309,6 +2323,7 @@
     const action=btn.dataset.action;
     if(action==="add")openEditor(btn.dataset.collection);
     else if(action==="add-financial-transaction")openEditor("financialTransactions");
+    else if(action==="print-financial-receipt")printFinancialReceipt(btn.dataset.id);
     else if(action==="reverse-financial-transaction"){
       const tx=financialTransactions.find(item=>String(item.id)===String(btn.dataset.id));
       if(!tx){toast("الحركة غير موجودة.","error");return;}
