@@ -17,7 +17,7 @@
 - مستودع GitHub: https://github.com/abdoahme/is-2
 - الفرع الذي يحتوي على هذه النسخة: `redesign/islam-al-fayed-interface`
 - الفرع الافتراضي للمستودع: `main`
-- نقطة بداية نسخة إعادة التصميم: `fc2abbe327525d765897ad7f352711d9fa797123`
+- نقطة بداية نسخة إعادة التصميم: `288b3a3d52d2c276ac97bc0318bcfbb86aa3975d`
 - التغيير المرئي الأول في CSS: `674616cdb937b08d7863d06f32117f9b6f3c26d5`
 - ملفات التطبيق الأساسية:
   - `index.html` — هيكل الصفحات وتسجيل الدخول والتنقل والنوافذ.
@@ -34,14 +34,14 @@
 | Project ID | `prj_K7UFKyRH9mwAeWUj93mScwHz3a8z` |
 | Team ID | `team_NTL4UG0h5TsX1yl1HVcNq2JA` |
 | النطاق | https://is-motors.vercel.app/ |
-| Deployment ID المرتبط بالنطاق في آخر تحقق | `dpl_7rWVMBJRHFcgNLPD3srNBQgN3WRX` |
-| رابط النشر المرتبط | https://is-motors-ant7vwsiy-aa01028111-9066.vercel.app/ |
+| Deployment ID المرتبط بالنطاق في آخر تحقق | `dpl_CcuBJjin3TpSHKrLY2iEdeKibWB8` |
+| رابط النشر المرتبط | https://is-motors-r6ej53w4t-aa01028111-9066.vercel.app/ |
 | حالة ذلك النشر عند آخر تحقق | `READY` |
-| فرع المصدر لذلك النشر | `fix/partner-accounting-safe-ledger` |
-| Commit النشر السابق | `fc2abbe327525d765897ad7f352711d9fa797123` |
+| فرع المصدر لذلك النشر | `redesign/islam-al-fayed-interface` |
+| Commit النشر السابق | `288b3a3d52d2c276ac97bc0318bcfbb86aa3975d` |
 | المنطقة | `iad1` |
 
-**ملاحظة نشر مهمة:** كان النطاق المخصص يشير إلى نشر جاهز، لكن خاصية `target` لذلك النشر في سجل Vercel كانت `null`؛ لذلك الوصف الدقيق هو أن النطاق تم إسناده إلى نشر جاهز، وليس الادعاء بأن سجل النشر يحمل Target = Production. هذا الملف يصف حالة النشر السابقة على إعادة تصميم الواجهة؛ يجب مراجعة سجل Vercel مرة أخرى بعد أي نشر جديد.
+**ملاحظة نشر مهمة:** بعد إعادة تصميم الواجهة، تم التحقق من أن النطاق `is-motors.vercel.app` مرتبط بالنشر `dpl_CcuBJjin3TpSHKrLY2iEdeKibWB8` وحالته `READY`، وأن مصدره هو فرع إعادة التصميم المذكور أعلاه. خاصية `target` في سجل Vercel ما زالت `null`؛ لذلك الوصف الدقيق هو أن النطاق تم إسناده إلى نشر جاهز، وليس الادعاء بأن سجل النشر يحمل `Target = Production`.
 
 ## 4. قاعدة البيانات — Supabase
 
