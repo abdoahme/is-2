@@ -63,7 +63,6 @@
         {key:"partnerPaymentMethod",label:"طريقة إيداع الشراكة",type:"select",options:["نقداً بالخزينة","تحويل بنكي","شيك بنكي","إيداع بنكي مباشر"]},
         {key:"prepCost",label:"مصاريف التجهيز",type:"number"},
         {key:"salePrice",label:"إجمالي سعر البيع",type:"number"},
-        {key:"paidAmount",label:"المبلغ المدفوع",type:"number"},
         {key:"status",label:"حالة السيارة",type:"select",options:["قيد البيع","كاش","متبقي","تقسيط","مباع"]},
         {key:"customer",label:"اسم العميل"},
         {key:"phone",label:"رقم الهاتف",type:"tel"},
@@ -111,6 +110,19 @@
         {key:"description",label:"البيان",type:"textarea",full:true}
       ]
     },
+    financialTransactions: {
+      title:"حركة مالية جديدة",
+      fields:[
+        {key:"date",label:"تاريخ الحركة",type:"date",required:true},
+        {key:"category",label:"نوع الحركة",type:"select",options:["تحصيل من عميل","سداد ثمن شراء سيارة","سداد تجهيز سيارة","حركة واردة أخرى","حركة منصرفة أخرى"],required:true},
+        {key:"payment_method",label:"طريقة الدفع",type:"select",options:["نقداً","تحويل بنكي","شيك","بطاقة","أخرى"],required:true},
+        {key:"amount",label:"المبلغ",type:"number",required:true},
+        {key:"car_id",label:"السيارة المرتبطة (عند الحاجة)",type:"select",options:[]},
+        {key:"person_name",label:"اسم العميل / المورد"},
+        {key:"reference",label:"رقم الإيصال / المرجع"},
+        {key:"description",label:"البيان والملاحظات",type:"textarea",full:true}
+      ]
+    },
     partnerPayouts: {
       title:"سحب من رصيد شريك",
       fields:[
@@ -133,6 +145,7 @@
   let backupEntries = [];
   let financialLedgerLoaded = false;
   let persistedState = null;
+  let selectedCustomer = "";
   let currentView = "overview";
   let editingCollection = null;
   let editingId = null;
@@ -1445,6 +1458,12 @@
     else if (currentView === "capital") host.innerHTML = renderCollection("capital","رأس المال وحركة الخزينة","الإيداعات والمسحوبات وحركة الشركاء.",capitalCard) +
       '<section class="panel section-gap"><h3>ملخص رأس المال</h3><div class="summary-list"><div class="summary-line"><span>إجمالي الإيداعات</span><strong class="positive">' + money(metrics().capitalIn) + '</strong></div><div class="summary-line"><span>إجمالي المسحوبات</span><strong class="negative">' + money(metrics().capitalOut) + '</strong></div><div class="summary-line"><span>أرباح من أشخاص</span><strong class="positive">' + money(metrics().profitFromPeople) + '</strong></div><div class="summary-line"><span>خسائر لأشخاص</span><strong class="negative">' + money(metrics().lossToPeople) + '</strong></div><div class="summary-line"><span>صافي الحركة بعد الأرباح والخسائر</span><strong class="' + (metrics().capitalNet >= 0 ? 'positive' : 'negative') + '">' + money(metrics().capitalNet) + '</strong></div></div></section>' + renderPartnerBalances();
     else if (currentView === "partners") host.innerHTML = renderPartners();
+    else if (currentView === "cashbook") host.innerHTML = renderCashbook();
+    else if (currentView === "inventory") host.innerHTML = renderInventory();
+    else if (currentView === "customers") host.innerHTML = renderCustomers();
+    else if (currentView === "reminders") host.innerHTML = renderReminders();
+    else if (currentView === "audit") host.innerHTML = renderAudit();
+    else if (currentView === "backups") host.innerHTML = renderBackups();
     else if (currentView === "reports") host.innerHTML = renderReports();
     else if (currentView === "monthlyClosing") host.innerHTML = renderMonthlyClosing();
     else if (currentView === "yearlyClosing") host.innerHTML = renderYearlyClosing();
@@ -1471,14 +1490,22 @@
       ? schema.fields.map(field => field.key === "partner"
         ? Object.assign({},field,{options:partnerBalances().filter(x=>x.balance>0).map(x=>x.partner)})
         : field)
-      : schema.fields;
+      : collection === "financialTransactions"
+        ? schema.fields.map(field=>field.key==="car_id"
+          ? Object.assign({},field,{options:[{value:"",label:"— اختر السيارة —"}].concat(state.cars.map(car=>({value:String(car.id)+"|"+String(car.model||"سيارة"),label:String(car.model||"سيارة")+" · "+String(car.chassis||"")})))})
+          : field)
+        : schema.fields;
     $("editorTitle").textContent = (item ? "تعديل " : "إضافة ") + schema.title;
     $("editorFields").innerHTML = fields.map(field=>{
       const val = value[field.key] == null ? "" : value[field.key];
       const cls = field.full ? "full" : "";
       let control = "";
       if (field.type === "select") {
-        control = '<select name="' + esc(field.key) + '">' + field.options.map(opt=>'<option value="' + esc(opt) + '"' + (String(val)===String(opt)?" selected":"") + '>' + esc(opt || "—") + '</option>').join("") + '</select>';
+        control = '<select name="' + esc(field.key) + '">' + field.options.map(opt=>{
+          const optionValue=typeof opt==="string"?opt:opt.value;
+          const optionLabel=typeof opt==="string"?(opt||"—"):opt.label;
+          return '<option value="' + esc(optionValue) + '"' + (String(val)===String(optionValue)?" selected":"") + '>' + esc(optionLabel) + '</option>';
+        }).join("") + '</select>';
       } else if (field.type === "textarea") {
         control = '<textarea name="' + esc(field.key) + '" maxlength="1000">' + esc(val) + '</textarea>';
       } else {
@@ -1567,6 +1594,49 @@
       toast("هذه الفترة مقفلة. لا يمكن إضافة أو تعديل سجلات فيها قبل إعادة فتح التقفيل بسبب موثّق.", "error");
       return;
     }
+    if (collection==="financialTransactions") {
+      const categories={
+        "تحصيل من عميل":{direction:"inflow",category:"car_collection",source_type:"car_collection",requiresCar:true},
+        "سداد ثمن شراء سيارة":{direction:"outflow",category:"car_purchase",source_type:"car_purchase",requiresCar:true},
+        "سداد تجهيز سيارة":{direction:"outflow",category:"car_prep",source_type:"car_prep",requiresCar:true},
+        "حركة واردة أخرى":{direction:"inflow",category:"manual",source_type:"manual",requiresCar:false},
+        "حركة منصرفة أخرى":{direction:"outflow",category:"manual",source_type:"manual",requiresCar:false}
+      };
+      const definition=categories[data.category];
+      const amountValue=amount(data.amount);
+      const carId=String(data.car_id||"").split("|")[0];
+      const car=state.cars.find(item=>String(item.id)===carId);
+      if(!definition || amountValue<=0 || !/^\d{4}-\d{2}-\d{2}$/.test(String(data.date||""))){
+        toast("راجع نوع الحركة والتاريخ والمبلغ؛ يجب أن يكون المبلغ أكبر من صفر.", "error");
+        return;
+      }
+      if(definition.requiresCar && !car){
+        toast("اختر السيارة المرتبطة بهذه الحركة.", "error");
+        return;
+      }
+      if(data.category==="تحصيل من عميل" && car && (amount(car.salePrice)<=0 || carPaid(car)+amountValue>amount(car.salePrice)+0.0001)){
+        toast("التحصيل يتجاوز المتبقي من سعر بيع السيارة أو أن السيارة لم يُحدد لها سعر بيع.", "error");
+        return;
+      }
+      try{
+        const result=await insertFinancialTransaction({
+          transaction_date:data.date,direction:definition.direction,category:definition.category,
+          payment_method:dbPaymentMethod(data.payment_method),amount:amountValue,
+          car_id:car?String(car.id):null,
+          person_name:data.person_name || (car?car.customer||"": ""),
+          description:data.description || data.category,
+          reference:data.reference || null,
+          source_type:definition.source_type,source_id:car?String(car.id):null,is_legacy:false
+        });
+        $("editorDialog").close();
+        editingCollection=null;editingId=null;
+        render();
+        toast("تم تسجيل الحركة المالية في الدفتر.", "success");
+      }catch(error){
+        toast("تعذر تسجيل الحركة: "+(error.message||"خطأ غير معروف"),"error");
+      }
+      return;
+    }
     const negativeField = schema.fields.find(field=>field.type==="number" && data[field.key] < 0);
     if (negativeField) {
       toast("لا يمكن إدخال مبلغ سالب في حقل " + negativeField.label + ".", "error");
@@ -1578,6 +1648,10 @@
     }
     if (collection==="cars" && data.paidAmount > data.salePrice + 0.0001) {
       toast("المبلغ المدفوع لا يمكن أن يتجاوز إجمالي سعر البيع.", "error");
+      return;
+    }
+    if (collection==="cars" && amount(data.partnerSharePercent)>100) {
+      toast("نسبة ربح الشريك لا يمكن أن تتجاوز 100%.", "error");
       return;
     }
     if (collection==="cars" && amount(data.partnerContribution)>0 && !data.partnerName) {
@@ -1806,11 +1880,18 @@
     const a = document.createElement("a"); a.href=url; a.download="IS-Motors-"+filename; a.click(); URL.revokeObjectURL(url);
   }
 
-  function backupJson() {
-    const payload = {generatedAt:new Date().toISOString(),user:session.user.email,state:state};
+  async function backupJson() {
+    const payload = {
+      generatedAt:new Date().toISOString(),user:session.user.email,
+      state:state,financialTransactions:financialTransactions,cashReconciliations:cashReconciliations
+    };
     const url = URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}));
-    const a=document.createElement("a");a.href=url;a.download="IS-Motors-backup-"+today()+".json";a.click();URL.revokeObjectURL(url);
-    toast("تم إنشاء النسخة الاحتياطية على جهازك.","success");
+    const a=document.createElement("a");a.href=url;a.download="IS-Motors-full-backup-"+today()+".json";a.click();URL.revokeObjectURL(url);
+    try{
+      const cloud=await createCloudBackup("manual");
+      toast("تم تنزيل النسخة وحفظ نسخة سحابية: "+cloud.label,"success");
+      render();
+    }catch(error){toast("تم التنزيل محلياً، لكن تعذر حفظ النسخة السحابية: "+error.message,"error");}
   }
 
   async function logout() {
@@ -1871,7 +1952,17 @@
     else if(action==="record-request")await recordRequest(btn.dataset.id);
     else if(action==="delete-request")await deleteRequest(btn.dataset.id);
     else if(action==="refresh-requests"){await loadRequests();render();toast("تم تحديث قائمة الطلبات.","success");}
-    else if(action==="backup-json")backupJson();
+    else if(action==="backup-json")await backupJson();
+    else if(action==="create-backup")await createManualBackup();
+    else if(action==="restore-backup")await restoreCloudBackup(btn.dataset.id);
+    else if(action==="customer-statement"){selectedCustomer=btn.dataset.customer||"";currentView="customers";render();}
+    else if(action==="customer-back"){selectedCustomer="";render();}
+    else if(action==="save-reconciliation")await saveCashReconciliation();
+    else if(action==="refresh-audit"){
+      const audit=await db.from("audit_logs").select("id,created_at,event_type,entity_type,entity_id,description,before_data,after_data").eq("user_id",session.user.id).order("created_at",{ascending:false}).limit(150);
+      if(audit.error)toast("تعذر تحديث سجل المراجعة: "+audit.error.message,"error");
+      else{auditEntries=audit.data||[];render();toast("تم تحديث سجل المراجعة.","success");}
+    }
     else if(action==="close-month")await closeMonthlyPeriod();
     else if(action==="reopen-month")await reopenMonthlyPeriod();
     else if(action==="close-year")await closeAnnualPeriod();
