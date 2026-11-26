@@ -357,12 +357,14 @@
       });
     });
     (sourceState.cars||[]).filter(car=>String(car.status||"")==="كاش" && amount(car.salePrice)>0 && car.id).forEach(car=>{
+      const hasAnyCollectionHistory=financialTransactions.some(tx=>String(tx.car_id||"")===String(car.id) && (tx.category==="car_collection" || (tx.category==="reversal" && ["car","car_collection","car_cash"].includes(tx.source_type))));
       const reversed=new Set(financialTransactions.filter(tx=>tx.reversal_of).map(tx=>String(tx.reversal_of)));
       const paid=financialTransactions.filter(tx=>String(tx.car_id||"")===String(car.id) &&
-        tx.category==="car_collection" && !reversed.has(String(tx.id))
+        (tx.category==="car_collection" || (tx.category==="reversal" && ["car","car_collection","car_cash"].includes(tx.source_type))) &&
+        !reversed.has(String(tx.id))
       ).reduce((sum,tx)=>sum+(tx.direction==="inflow"?amount(tx.amount):-amount(tx.amount)),0);
       const remaining=Math.max(0,amount(car.salePrice)-paid);
-      if(remaining>0.005 && /^\d{4}-\d{2}-\d{2}$/.test(String(car.date||""))){
+      if(!hasAnyCollectionHistory && remaining>0.005 && /^\d{4}-\d{2}-\d{2}$/.test(String(car.date||""))){
         output.push({
           user_id:session.user.id,transaction_date:car.date,direction:"inflow",category:"car_collection",
           payment_method:"cash",amount:remaining,car_id:String(car.id),person_name:car.customer||"",
@@ -407,6 +409,7 @@
       const candidates=desiredGroups.get(key)||[];
       const matchedIndex=candidates.findIndex(item=>sameSourceMovement(current,item));
       if(matchedIndex>=0) candidates.splice(matchedIndex,1);
+      else if(current.is_legacy && !desiredGroups.has(key)) continue;
       else await reverseFinancialTransaction(current,"تعديل أو حذف السجل المرتبط في النظام");
     }
     for(const group of desiredGroups.values()){
@@ -574,7 +577,7 @@
       const reversed=new Set(financialTransactions.filter(t=>t.reversal_of).map(t=>String(t.reversal_of)));
       return Math.max(0,financialTransactions.filter(t=>
         String(t.car_id||"")===String(car.id) &&
-        (t.category==="car_collection" || (t.category==="reversal" && (t.source_type==="car" || t.source_type==="car_collection"))) &&
+        (t.category==="car_collection" || (t.category==="reversal" && ["car","car_collection","car_cash"].includes(t.source_type))) &&
         !reversed.has(String(t.id))
       ).reduce((sum,t)=>sum+(t.direction==="inflow"?amount(t.amount):-amount(t.amount)),0));
     }
