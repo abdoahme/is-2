@@ -17,7 +17,15 @@
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
   };
   const num = (value) => {
-    const n = Number(value);
+    if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+    const raw = String(value == null ? "" : value).trim();
+    if (!raw) return 0;
+    const normalized = raw
+      .replace(/[٠-٩]/g, digit => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)))
+      .replace(/[۰-۹]/g, digit => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
+      .replace(/\u066B/g, ".")
+      .replace(/[\u066C,\s\u00A0]/g, "");
+    const n = Number(normalized);
     return Number.isFinite(n) ? n : 0;
   };
   const money = (value) => num(value).toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 2}) + " ج.م";
@@ -211,7 +219,8 @@
     } else {
       recordId = null;
       state = emptyState();
-      await saveState(true);
+      const created = await saveState(true);
+      if (!created) throw new Error("تعذر إنشاء سجل الحساب في قاعدة البيانات. لم يتم فتح بيانات غير محفوظة.");
     }
     setSync("متصل", "");
   }
@@ -226,8 +235,11 @@
       if (recordId) {
         const result = await db.from("app_records")
           .update({payload:payload, updated_at:new Date().toISOString()})
-          .eq("id", recordId);
+          .eq("id", recordId)
+          .select("id")
+          .maybeSingle();
         if (result.error) throw result.error;
+        if (!result.data || !result.data.id) throw new Error("لم تؤكد قاعدة البيانات حفظ التعديلات؛ لم يتم اعتماد العملية.");
       } else {
         const result = await db.from("app_records")
           .insert({user_id:session.user.id,record_type:"settings",record_key:"main",payload:payload})
@@ -278,43 +290,71 @@
     const expenses = state.expenses.reduce((sum,e)=>sum+amount(e.amount),0);
     const capitalIn = state.capital.reduce((sum,c)=>sum+amount(c.deposited),0);
     const capitalOut = state.capital.reduce((sum,c)=>sum+amount(c.withdrawn),0);
-    return {cars:cars.length, inventory:inventory.length, sold:sold.length, purchase, profit, carRemainingTotal, receivableDebts, payableDebts, expenses, capitalIn, capitalOut, capitalNet:capitalIn-capitalOut, totalReceivables:carRemainingTotal+receivableDebts};
+    const profitFromPeople = state.capital.filter(c=>c.profitLossType==="ربح من شخص").reduce((sum,c)=>sum+amount(c.profitLossAmount),0);
+    const lossToPeople = state.capital.filter(c=>c.profitLossType==="خسارة لشخص").reduce((sum,c)=>sum+amount(c.profitLossAmount),0);
+    const profitLossNet = profitFromPeople - lossToPeople;
+    return {
+      cars:cars.length, inventory:inventory.length, sold:sold.length, purchase, profit,
+      carRemainingTotal, receivableDebts, payableDebts, expenses, capitalIn, capitalOut,
+      profitFromPeople, lossToPeople, profitLossNet,
+      capitalNet:capitalIn-capitalOut+profitLossNet,
+      totalReceivables:carRemainingTotal+receivableDebts
+    };
+  }
+
+
+  function worsenedPartnerBalance(previousState) {
+    const nextState = state;
+    const after = partnerBalances();
+    state = previousState;
+    const before = partnerBalances();
+    state = nextState;
+    const beforeByName = new Map(before.map(item => [item.partner, item.balance]));
+    return after.find(item => item.balance < -0.0001 &&
+      item.balance < (beforeByName.has(item.partner) ? beforeByName.get(item.partner) : 0) - 0.0001) || null;
+  }
+
+  function isLinkedCapitalEntry(entry) {
+    if (!entry) return false;
+    if (entry.linkedMovementId || entry.sourceCarId) return true;
+    const id = String(entry.id || "");
+    return Boolean(id && (state.partnerMovements || []).some(m => String(m.sourceCapitalId || "") === id));
   }
 
   function partnerBalances() {
     const balances = new Map();
+    const movements = Array.isArray(state.partnerMovements) ? state.partnerMovements : [];
     const get = (name) => {
       const key = String(name || "").trim();
       if (!key) return null;
       if (!balances.has(key)) balances.set(key, {partner:key, contributed:0, withdrawn:0});
       return balances.get(key);
     };
-    (state.partnerMovements || []).forEach((movement) => {
+    movements.forEach((movement) => {
       if (movement.type !== "contribution" && movement.type !== "payout") return;
       const item = get(movement.partner);
       if (!item) return;
       if (movement.type === "contribution") item.contributed += amount(movement.amount);
       if (movement.type === "payout") item.withdrawn += amount(movement.amount);
     });
+    const movementCapitalIds = new Set(movements.map(movement => movement.sourceCapitalId == null ? "" : String(movement.sourceCapitalId)).filter(Boolean));
     (state.capital || []).forEach((entry) => {
-      if (entry.linkedMovementId || !entry.partner) return;
+      if (!entry.partner) return;
+      const linkedMovementExists = entry.linkedMovementId && movements.some(movement => String(movement.id) === String(entry.linkedMovementId));
+      const linkedByCapitalId = entry.id && movementCapitalIds.has(String(entry.id));
+      const linkedByCar = entry.sourceCarId && movements.some(movement =>
+        movement.type === "contribution" && String(movement.sourceCarId || "") === String(entry.sourceCarId) &&
+        String(movement.partner || "").trim() === String(entry.partner || "").trim()
+      );
+      if (linkedMovementExists || linkedByCapitalId || linkedByCar) return;
       const item = get(entry.partner);
       if (!item) return;
-      const deposited = amount(entry.deposited);
-      const withdrawn = amount(entry.withdrawn);
-      const sameMovementExists = (type, value) => (state.partnerMovements || []).some((movement) =>
-        movement.type === type &&
-        String(movement.partner || "").trim() === String(entry.partner || "").trim() &&
-        amount(movement.amount) === value &&
-        String(movement.date || "") === String(entry.date || "")
-      );
-      if (deposited > 0 && !sameMovementExists("contribution", deposited)) item.contributed += deposited;
-      if (withdrawn > 0 && !sameMovementExists("payout", withdrawn)) item.withdrawn += withdrawn;
+      item.contributed += Math.max(0, amount(entry.deposited));
+      item.withdrawn += Math.max(0, amount(entry.withdrawn));
     });
-    return Array.from(balances.values()).map((item) => Object.assign({}, item, {
-      balance:item.contributed - item.withdrawn
-    })).sort((a,b)=>a.partner.localeCompare(b.partner,"ar"));
+    return Array.from(balances.values()).map(item => Object.assign({},item,{balance:item.contributed-item.withdrawn})).sort((a,b)=>a.partner.localeCompare(b.partner,"ar"));
   }
+
 
   function renderPartnerBalances() {
     const active = partnerBalances();
@@ -353,9 +393,20 @@
     return '<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">' + esc(d.partyName || "جهة غير محددة") + '</div><div class="data-card-sub">' + esc(d.description || "") + ' · استحقاق ' + dateText(d.dueDate) + '</div></div>' + badge(d.status || "قيد المتابعة", d.status==="متأخر"?"warn":(rem===0?"ok":"gold")) + '</div><div class="data-card-grid"><div class="data-cell"><span>الإجمالي</span><strong>' + money(d.totalAmount) + '</strong></div><div class="data-cell"><span>المسدد</span><strong class="positive">' + money(d.paidAmount) + '</strong></div><div class="data-cell"><span>المتبقي</span><strong class="' + (rem>0?"negative":"positive") + '">' + money(rem) + '</strong></div><div class="data-cell"><span>الطبيعة</span><strong>' + esc(d.nature || "—") + '</strong></div></div><div class="card-actions"><button class="btn btn-outline btn-small" data-action="edit" data-collection="debts" data-id="' + esc(d.id) + '">تعديل</button><button class="btn btn-danger btn-small" data-action="delete" data-collection="debts" data-id="' + esc(d.id) + '">حذف</button></div></article>';
   }
   function capitalCard(c) {
-    const net = amount(c.deposited)-amount(c.withdrawn);
-    return '<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">' + esc(c.partner || "شريك غير محدد") + '</div><div class="data-card-sub">' + esc(c.movementType || "حركة مالية") + ' · ' + dateText(c.date) + '</div></div>' + badge(c.method || "غير محدد","gold") + '</div><div class="data-card-grid"><div class="data-cell"><span>داخل</span><strong class="positive">' + money(c.deposited) + '</strong></div><div class="data-cell"><span>خارج</span><strong class="negative">' + money(c.withdrawn) + '</strong></div><div class="data-cell"><span>صافي الحركة</span><strong>' + money(net) + '</strong></div><div class="data-cell"><span>رقم الإيصال</span><strong>' + esc(c.receiptNo || "—") + '</strong></div></div><div class="card-actions"><button class="btn btn-outline btn-small" data-action="edit" data-collection="capital" data-id="' + esc(c.id) + '">تعديل</button><button class="btn btn-danger btn-small" data-action="delete" data-collection="capital" data-id="' + esc(c.id) + '">حذف</button></div></article>';
+    const profitLoss = amount(c.profitLossAmount);
+    const profitLossNet = c.profitLossType === "ربح من شخص" ? profitLoss : (c.profitLossType === "خسارة لشخص" ? -profitLoss : 0);
+    const net = amount(c.deposited)-amount(c.withdrawn)+profitLossNet;
+    const linked = isLinkedCapitalEntry(c);
+    const profitLossInfo = c.profitLossType && profitLoss > 0
+      ? '<div class="data-cell"><span>' + esc(c.profitLossType) + '</span><strong class="' + (profitLossNet >= 0 ? 'positive' : 'negative') + '">' + money(profitLoss) + '</strong></div>'
+      : '';
+    const actions = linked
+      ? '<div class="card-actions"><span class="panel-note">قيد مرتبط بحركة سيارة أو شريك؛ يتم تعديله من السجل الأصلي للحفاظ على تطابق الدفاتر.</span></div>'
+      : '<div class="card-actions"><button class="btn btn-outline btn-small" data-action="edit" data-collection="capital" data-id="' + esc(c.id) + '">تعديل</button><button class="btn btn-danger btn-small" data-action="delete" data-collection="capital" data-id="' + esc(c.id) + '">حذف</button></div>';
+    return '<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">' + esc(c.partner || "شريك غير محدد") + '</div><div class="data-card-sub">' + esc(c.movementType || "حركة مالية") + ' · ' + dateText(c.date) + '</div></div>' + badge(c.method || "غير محدد","gold") + '</div><div class="data-card-grid"><div class="data-cell"><span>داخل</span><strong class="positive">' + money(c.deposited) + '</strong></div><div class="data-cell"><span>خارج</span><strong class="negative">' + money(c.withdrawn) + '</strong></div>' + profitLossInfo + '<div class="data-cell"><span>صافي الحركة</span><strong class="' + (net >= 0 ? 'positive' : 'negative') + '">' + money(net) + '</strong></div><div class="data-cell"><span>رقم الإيصال</span><strong>' + esc(c.receiptNo || "—") + '</strong></div></div>' + actions + '</article>';
   }
+
+
   function listMarkup(items, renderer, noText) {
     return items.length ? '<div class="data-list">' + items.map(renderer).join("") + '</div>' : empty(noText || "لا توجد بيانات مسجلة حتى الآن.");
   }
@@ -377,6 +428,12 @@
       '<div class="summary-line"><span>ذمم مستحقة للمعرض</span><strong class="negative">' + money(m.receivableDebts) + '</strong></div>' +
       '<div class="summary-line"><span>ذمم مستحقة على المعرض</span><strong>' + money(m.payableDebts) + '</strong></div>' +
       '<div class="summary-line"><span>صافي حركة رأس المال</span><strong class="positive">' + money(m.capitalNet) + '</strong></div>' +
+      '<div class="summary-line"><span>أرباح من أشخاص</span><strong class="positive">' + money(m.profitFromPeople) + '</strong></div>' +
+      '<div class="summary-line"><span>خسائر لأشخاص</span><strong class="negative">' + money(m.lossToPeople) + '</strong></div>' +
+      '<div class="summary-line"><span>صافي حركة رأس المال بعد الأرباح والخسائر</span><strong class="' + (m.capitalNet >= 0 ? 'positive' : 'negative') + '">' + money(m.capitalNet) + '</strong></div>' +
+      '<div class="summary-line"><span>أرباح من أشخاص</span><strong class="positive">' + money(m.profitFromPeople) + '</strong></div>' +
+      '<div class="summary-line"><span>خسائر لأشخاص</span><strong class="negative">' + money(m.lossToPeople) + '</strong></div>' +
+      '<div class="summary-line"><span>صافي حركة رأس المال بعد الأرباح والخسائر</span><strong class="' + (m.capitalNet >= 0 ? 'positive' : 'negative') + '">' + money(m.capitalNet) + '</strong></div>' +
       '<div class="summary-line"><span>عدد طلبات الموظفين المعلقة</span><strong>' + requests.filter(r=>r.status==="pending").length + '</strong></div>' +
       '</div><p class="panel-note section-gap">الأرقام محسوبة مباشرة من السجلات المحفوظة في قاعدة البيانات.</p></section></div>' +
       '<section class="panel section-gap"><h3>أعلى المصروفات المسجلة</h3>' +
@@ -433,7 +490,16 @@
   }
 
   function renderPartners() {
-    const source = Array.isArray(state.partnerMovements) ? state.partnerMovements : [];
+    const source = Array.isArray(state.partnerMovements) ? state.partnerMovements.slice() : [];
+    const linkedCapitalIds = new Set(source.map(m=>m.sourceCapitalId == null ? "" : String(m.sourceCapitalId)).filter(Boolean));
+    (state.capital || []).forEach(entry=>{
+      if (!entry.partner || entry.linkedMovementId || (entry.id && linkedCapitalIds.has(String(entry.id)))) return;
+      const linkedByCar = entry.sourceCarId && source.some(m=>m.type==="contribution" && String(m.sourceCarId||"")===String(entry.sourceCarId) && String(m.partner||"").trim()===String(entry.partner||"").trim());
+      if (linkedByCar) return;
+      const base = {partner:entry.partner,date:entry.date,note:entry.description || entry.movementType || "حركة رأس مال",sourceCarId:entry.sourceCarId,sourceCapitalId:entry.id};
+      if (amount(entry.deposited)>0) source.push(Object.assign({},base,{id:"capital-in-"+entry.id,type:"contribution",amount:amount(entry.deposited)}));
+      if (amount(entry.withdrawn)>0) source.push(Object.assign({},base,{id:"capital-out-"+entry.id,type:"payout",amount:amount(entry.withdrawn)}));
+    });
     const q = ($("globalSearch").value || "").trim().toLowerCase();
     const filtered = source.filter(m => {
       const car = state.cars.find(c => String(c.id) === String(m.sourceCarId));
@@ -487,11 +553,13 @@
     const cost = sold.reduce((s,c)=>s+amount(c.purchasePrice)+amount(c.prepCost),0);
     const gross = revenue-cost;
     const expenseTotal = expenses.reduce((s,e)=>s+amount(e.amount),0);
-    const net = gross-expenseTotal;
     const carRemainingTotal = cars.reduce((s,c)=>s+carRemaining(c),0);
     const debtRemainingTotal = debts.filter(d=>String(d.nature||"").includes("لنا")).reduce((s,d)=>s+debtRemaining(d),0);
     const capitalIn = capital.reduce((s,c)=>s+amount(c.deposited),0);
     const capitalOut = capital.reduce((s,c)=>s+amount(c.withdrawn),0);
+    const profitFromPeople = capital.filter(c=>c.profitLossType==="ربح من شخص").reduce((s,c)=>s+amount(c.profitLossAmount),0);
+    const lossToPeople = capital.filter(c=>c.profitLossType==="خسارة لشخص").reduce((s,c)=>s+amount(c.profitLossAmount),0);
+    const net = gross-expenseTotal+profitFromPeople-lossToPeople;
     let closingText = "اعرض شهراً محدداً لمعرفة حالة التقفيل.";
     let closingClass = "gold";
     if (reportYear!=="ALL" && reportMonth!=="ALL") {
@@ -534,7 +602,7 @@
     else if (currentView === "expenses") host.innerHTML = renderCollection("expenses","مصروفات التشغيل","تسجيل ومراجعة كل المصروفات الفعلية للمعرض.",expenseCard);
     else if (currentView === "debts") host.innerHTML = renderCollection("debts","الذمم والأقساط","المبالغ المستحقة للمعرض أو المستحقة عليه.",debtCard);
     else if (currentView === "capital") host.innerHTML = renderCollection("capital","رأس المال وحركة الخزينة","الإيداعات والمسحوبات وحركة الشركاء.",capitalCard) +
-      '<section class="panel section-gap"><h3>ملخص رأس المال</h3><div class="summary-list"><div class="summary-line"><span>إجمالي الإيداعات</span><strong class="positive">' + money(metrics().capitalIn) + '</strong></div><div class="summary-line"><span>إجمالي المسحوبات</span><strong class="negative">' + money(metrics().capitalOut) + '</strong></div><div class="summary-line"><span>صافي الحركة</span><strong>' + money(metrics().capitalNet) + '</strong></div></div></section>' + renderPartnerBalances();
+      '<section class="panel section-gap"><h3>ملخص رأس المال</h3><div class="summary-list"><div class="summary-line"><span>إجمالي الإيداعات</span><strong class="positive">' + money(metrics().capitalIn) + '</strong></div><div class="summary-line"><span>إجمالي المسحوبات</span><strong class="negative">' + money(metrics().capitalOut) + '</strong></div><div class="summary-line"><span>أرباح من أشخاص</span><strong class="positive">' + money(metrics().profitFromPeople) + '</strong></div><div class="summary-line"><span>خسائر لأشخاص</span><strong class="negative">' + money(metrics().lossToPeople) + '</strong></div><div class="summary-line"><span>صافي الحركة بعد الأرباح والخسائر</span><strong class="' + (metrics().capitalNet >= 0 ? 'positive' : 'negative') + '">' + money(metrics().capitalNet) + '</strong></div></div></section>' + renderPartnerBalances();
     else if (currentView === "partners") host.innerHTML = renderPartners();
     else if (currentView === "reports") host.innerHTML = renderReports();
     else if (currentView === "receivables") host.innerHTML = renderReceivables();
@@ -550,6 +618,10 @@
     editingCollection = collection;
     editingId = id || null;
     const item = id ? (state[collection] || []).find(x=>String(x.id)===String(id)) : null;
+    if (collection==="capital" && item && isLinkedCapitalEntry(item)) {
+      toast("هذا القيد مرتبط بسيارة أو حركة شريك. عدّله من سجل السيارة أو اتركه كما هو للحفاظ على تطابق الدفاتر.", "error");
+      return;
+    }
     const defaults = {id:makeId(),date:today(),dueDate:today(),status:collection==="cars"?"قيد البيع":(collection==="debts"?"قيد المتابعة":""),paidAmount:0,purchasePrice:0,prepCost:0,salePrice:0,amount:0,totalAmount:0,deposited:0,withdrawn:0,profitLossAmount:0,partnerContribution:0};
     const value = item || defaults;
     const fields = collection === "partnerPayouts"
@@ -576,14 +648,28 @@
 
   function syncCarPartnerContribution(car, previousCar) {
     const contribution = amount(car.partnerContribution);
+    state.partnerMovements = Array.isArray(state.partnerMovements) ? state.partnerMovements : [];
+    state.capital = Array.isArray(state.capital) ? state.capital : [];
+    const previousMovement = previousCar && state.partnerMovements.find(m =>
+      String(m.id) === String(previousCar.partnerMovementId || "") ||
+      (m.type === "contribution" && String(m.sourceCarId || "") === String(car.id))
+    );
+    const previousCapital = previousCar && state.capital.find(c =>
+      String(c.id) === String(previousCar.partnerCapitalId || "") ||
+      String(c.id) === String(previousMovement && previousMovement.sourceCapitalId || "") ||
+      (String(c.sourceCarId || "") === String(car.id) && c.movementType === "مساهمة شريك في شراء سيارة")
+    );
     if (contribution <= 0) {
-      if (previousCar && previousCar.partnerMovementId) throw new Error("هذه السيارة لها مساهمة شريك مسجلة بالفعل. لا يمكن تصفيرها من تعديل السيارة؛ سجّل أي تسوية كحركة مستقلة.");
+      if (previousMovement) state.partnerMovements = state.partnerMovements.filter(m=>String(m.id)!==String(previousMovement.id));
+      if (previousCapital) state.capital = state.capital.filter(c=>String(c.id)!==String(previousCapital.id));
+      car.partnerMovementId = null;
+      car.partnerCapitalId = null;
       return;
     }
     const partner = String(car.partnerName || "").trim();
     if (!partner) throw new Error("اكتب اسم الشريك قبل تسجيل مبلغ الشراكة.");
-    const movementId = previousCar && previousCar.partnerMovementId ? previousCar.partnerMovementId : makeId();
-    const capitalId = previousCar && previousCar.partnerCapitalId ? previousCar.partnerCapitalId : makeId();
+    const movementId = previousMovement ? previousMovement.id : (previousCar && previousCar.partnerMovementId ? previousCar.partnerMovementId : makeId());
+    const capitalId = previousCapital ? previousCapital.id : (previousCar && previousCar.partnerCapitalId ? previousCar.partnerCapitalId : makeId());
     const movement = {
       id:movementId, partner, type:"contribution", amount:contribution, date:car.date || today(),
       note:"مساهمة في شراء السيارة " + String(car.model || ""),
@@ -606,11 +692,21 @@
     car.partnerMovementId = movementId;
     car.partnerCapitalId = capitalId;
   }
+
+
   async function submitEditor(event) {
     event.preventDefault();
+    if (saving) { toast("هناك عملية حفظ جارية؛ انتظر تأكيدها قبل تسجيل حركة جديدة.", "error"); return; }
     if (!editingCollection) return;
     const collection = editingCollection;
     const schema = schemas[collection];
+    if (collection==="capital" && editingId) {
+      const linkedEntry = state.capital.find(entry=>String(entry.id)===String(editingId));
+      if (linkedEntry && isLinkedCapitalEntry(linkedEntry)) {
+        toast("لا يمكن تعديل قيد مرتبط منفردًا. عدّل العملية من سجل السيارة أو الشريك.", "error");
+        return;
+      }
+    }
     const previous = clone(state);
     const previousCar = collection==="cars" && editingId
       ? clone(state.cars.find(x=>String(x.id)===String(editingId)) || null)
@@ -621,7 +717,16 @@
       const raw = form.get(field.key);
       data[field.key] = field.type==="number" ? num(raw) : String(raw || "").trim();
     });
-    if (collection==="cars" && data.paidAmount > data.salePrice && data.salePrice > 0) {
+    const negativeField = schema.fields.find(field=>field.type==="number" && data[field.key] < 0);
+    if (negativeField) {
+      toast("لا يمكن إدخال مبلغ سالب في حقل " + negativeField.label + ".", "error");
+      return;
+    }
+    if (collection==="expenses" && amount(data.amount)<=0) {
+      toast("يجب أن يكون مبلغ المصروف أكبر من صفر.", "error");
+      return;
+    }
+    if (collection==="cars" && data.paidAmount > data.salePrice + 0.0001) {
       toast("المبلغ المدفوع لا يمكن أن يتجاوز إجمالي سعر البيع.", "error");
       return;
     }
@@ -629,13 +734,19 @@
       toast("اكتب اسم الشريك المساهم حتى يتم تسجيل حصته في رأس المال.", "error");
       return;
     }
-    if (collection==="cars" && previousCar && previousCar.partnerMovementId && amount(data.partnerContribution)<=0) {
-      toast("لا يمكن حذف مساهمة مسجلة من تعديل السيارة. استخدم حركة تسوية مستقلة للحفاظ على السجل المالي.", "error");
+    if (collection==="debts" && (data.totalAmount<=0 || data.paidAmount > data.totalAmount + 0.0001)) {
+      toast("يجب أن يكون إجمالي الذمة أكبر من صفر، ولا يمكن أن يتجاوز المسدد إجماليها.", "error");
       return;
     }
-    if (collection==="debts" && data.paidAmount > data.totalAmount) {
-      toast("المبلغ المسدد لا يمكن أن يتجاوز إجمالي الذمة.", "error");
-      return;
+    if (collection==="capital") {
+      if (amount(data.deposited)>0 && amount(data.withdrawn)>0) {
+        toast("سجّل الإيداع والسحب في حركتين منفصلتين حتى تكون حركة الخزينة واضحة.", "error");
+        return;
+      }
+      if ((data.profitLossType && amount(data.profitLossAmount)<=0) || (!data.profitLossType && amount(data.profitLossAmount)>0)) {
+        toast("اختر نوع الربح أو الخسارة وأدخل مبلغًا أكبر من صفر، أو اترك الحقلين فارغين.", "error");
+        return;
+      }
     }
     if (collection==="partnerPayouts") {
       const available = partnerBalances().find(x=>x.partner===data.partner);
@@ -671,8 +782,6 @@
         const savedCar = state.cars.find(x=>String(x.id)===String(editingId || data.id));
         try {
           if (savedCar) syncCarPartnerContribution(savedCar, previousCar);
-          const negativeBalance = partnerBalances().find(x=>x.balance < -0.0001);
-          if (negativeBalance) throw new Error("تعديل المساهمة سيجعل رصيد الشريك " + negativeBalance.partner + " بالسالب. راجع دفعات السحب أولاً.");
         } catch (error) {
           state = previous;
           toast(error.message || "تعذر ربط مساهمة الشريك.", "error");
@@ -681,6 +790,13 @@
         }
       }
     }
+    const damagedPartner = worsenedPartnerBalance(previous);
+    if (damagedPartner) {
+      state = previous;
+      toast("لا يمكن حفظ الحركة؛ رصيد الشريك " + damagedPartner.partner + " سيصبح سالبًا بسبب السحب السابق.", "error");
+      render();
+      return;
+    }
     $("editorDialog").close();
     render();
     const ok = await saveState(false);
@@ -688,15 +804,47 @@
     else { editingCollection=null; editingId=null; render(); }
   }
   async function deleteItem(collection,id) {
+    if (saving) { toast("هناك عملية حفظ جارية؛ انتظر حتى تنتهي.", "error"); return; }
     const item = (state[collection] || []).find(x=>String(x.id)===String(id));
-    if (!item || !confirm("هل تريد حذف هذا السجل؟ لا يمكن التراجع بعد الحفظ.")) return;
+    if (!item) return;
+    if (collection==="capital" && isLinkedCapitalEntry(item)) {
+      toast("هذا القيد مرتبط بمساهمة سيارة أو سحب شريك؛ لا تحذفه منفردًا حتى لا تختلف الدفاتر.", "error");
+      return;
+    }
+    if (!confirm("هل تريد حذف هذا السجل؟ لا يمكن التراجع بعد الحفظ.")) return;
     const previous = clone(state);
-    state[collection] = state[collection].filter(x=>String(x.id)!==String(id));
+    if (collection==="cars") {
+      const linkedMovements = (state.partnerMovements || []).filter(m =>
+        m.type==="contribution" &&
+        (String(m.id)===String(item.partnerMovementId || "") || String(m.sourceCarId || "")===String(item.id))
+      );
+      const linkedMovementIds = new Set(linkedMovements.map(m=>String(m.id)));
+      const linkedCapitalIds = new Set([
+        item.partnerCapitalId == null ? "" : String(item.partnerCapitalId),
+        ...linkedMovements.map(m=>m.sourceCapitalId == null ? "" : String(m.sourceCapitalId))
+      ].filter(Boolean));
+      state.partnerMovements = (state.partnerMovements || []).filter(m=>!linkedMovementIds.has(String(m.id)));
+      state.capital = (state.capital || []).filter(c=>
+        !linkedCapitalIds.has(String(c.id)) &&
+        !(String(c.sourceCarId || "")===String(item.id) && c.movementType==="مساهمة شريك في شراء سيارة")
+      );
+    }
+    state[collection] = (state[collection] || []).filter(x=>String(x.id)!==String(id));
+    if (collection==="cars" || collection==="capital") {
+      const damagedPartner = worsenedPartnerBalance(previous);
+      if (damagedPartner) {
+        state = previous;
+        render();
+        toast("لا يمكن حذف الحركة؛ رصيد الشريك " + damagedPartner.partner + " سيصبح سالبًا بسبب السحب المسجل.", "error");
+        return;
+      }
+    }
     render();
     const ok = await saveState(false);
     if (!ok) state = previous;
     render();
   }
+
 
   async function recordRequest(id) {
     const request = requests.find(r=>String(r.id)===String(id));
@@ -770,7 +918,7 @@
 
   function exportCsv() {
     let rows = [], filename = currentView + ".csv";
-    if (currentView==="cars") rows = state.cars.map(c=>({date:c.date,model:c.model,customer:c.customer,phone:c.phone,purchasePrice:c.purchasePrice,prepCost:c.prepCost,salePrice:c.salePrice,paidAmount:carPaid(c),remaining:carRemaining(c),status:c.status,notes:c.notes}));
+    if (currentView==="cars") rows = state.cars.map(c=>({date:c.date,model:c.model,customer:c.customer,phone:c.phone,purchasePrice:c.purchasePrice,partnerName:c.partnerName,partnerContribution:c.partnerContribution,prepCost:c.prepCost,salePrice:c.salePrice,paidAmount:carPaid(c),remaining:carRemaining(c),status:c.status,notes:c.notes}));
     else if (currentView==="expenses") rows = state.expenses.map(e=>({date:e.date,category:e.category,description:e.description,amount:e.amount,paymentMethod:e.paymentMethod,recipient:e.recipient,notes:e.notes}));
     else if (currentView==="debts") rows = state.debts.map(d=>({partyName:d.partyName,nature:d.nature,description:d.description,totalAmount:d.totalAmount,paidAmount:d.paidAmount,remaining:debtRemaining(d),dueDate:d.dueDate,status:d.status,phone:d.phone}));
     else if (currentView==="capital") rows = state.capital.map(c=>({date:c.date,partner:c.partner,movementType:c.movementType,deposited:c.deposited,withdrawn:c.withdrawn,method:c.method,receiptNo:c.receiptNo,description:c.description}));
