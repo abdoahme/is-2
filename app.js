@@ -439,7 +439,7 @@
       closingClass = closed ? "ok" : "warn";
     }
     return heading("التقارير والتقفيل","تقرير مشتريات ومبيعات ومصروفات ونتيجة الفترة من السجلات الحالية.",
-      '<select id="reportYear" class="search-input" style="width:auto">' + yearsHtml + '</select><select id="reportMonth" class="search-input" style="width:auto">' + monthsHtml + '</select>') +
+      '<select id="reportYear" class="search-input" style="width:auto">' + yearsHtml + '</select><select id="reportMonth" class="search-input" style="width:auto"' + (reportYear==="ALL"?" disabled":"") + '>' + monthsHtml + '</select>') +
       '<div class="kpi-grid">' +
       kpi("إيرادات بيع السيارات",money(revenue),"السيارات المسجلة كمباعة بالفترة","green") +
       kpi("تكلفة السيارات المباعة",money(cost),"شراء وتجهيز السيارات المباعة","") +
@@ -681,8 +681,8 @@
     render();
   });
   $("mainContent").addEventListener("change",(event)=>{
-    if(event.target.id==="reportYear") { reportYear=event.target.value; render(); }
-    if(event.target.id==="reportMonth") { reportMonth=event.target.value; render(); }
+    if(event.target.id==="reportYear") { reportYear=event.target.value; if(reportYear==="ALL") reportMonth="ALL"; render(); }
+    if(event.target.id==="reportMonth" && reportYear!=="ALL") { reportMonth=event.target.value; render(); }
   });
   $("mainContent").addEventListener("click",async(event)=>{
     const btn=event.target.closest("[data-action]");
