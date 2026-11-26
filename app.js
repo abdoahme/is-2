@@ -505,8 +505,8 @@
     });
     (sourceState.cars||[]).filter(car=>isSoldCar(car) && amount(car.salePrice)>0 && car.id).forEach(car=>{
       const reversed=new Set(financialTransactions.filter(tx=>tx.reversal_of).map(tx=>String(tx.reversal_of)));
-      const previousAuto=financialTransactions.find(tx=>String(tx.car_id||"")===String(car.id)&&tx.source_type==="car_cash"&&tx.category==="car_collection");
-      if(previousAuto && !reversed.has(String(previousAuto.id))){
+      const previousAuto=financialTransactions.find(tx=>String(tx.car_id||"")===String(car.id)&&tx.source_type==="car_cash"&&tx.category==="car_collection"&&!reversed.has(String(tx.id)));
+      if(previousAuto){
         output.push({
           user_id:session.user.id,transaction_date:previousAuto.transaction_date,direction:previousAuto.direction,
           category:previousAuto.category,payment_method:previousAuto.payment_method,amount:amount(previousAuto.amount),
@@ -515,7 +515,7 @@
         });
         return;
       }
-      const hasLegacyCashEntry=financialTransactions.some(tx=>String(tx.car_id||"")===String(car.id)&&tx.source_type==="car_cash");
+      const hasLegacyCashEntry=financialTransactions.some(tx=>String(tx.car_id||"")===String(car.id)&&tx.source_type==="car_cash"&&tx.category==="car_collection"&&!reversed.has(String(tx.id)));
       const firstPayment=amount(car.saleInitialPayment);
       const paymentDate=String(car.saleDate||car.date||"");
       if(!hasLegacyCashEntry && firstPayment>0 && /^\d{4}-\d{2}-\d{2}$/.test(paymentDate)){
