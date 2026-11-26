@@ -41,7 +41,7 @@
   const titles = {
     overview:"الرئيسية", cars:"السيارات", expenses:"المصروفات",
     receivables:"المبالغ المتبقية", debts:"الذمم والأقساط",
-    capital:"رأس المال والخزينة", partners:"حركة الشركاء", reports:"التقارير والتقفيل", requests:"طلبات الموظفين", settings:"الإعدادات والروابط"
+    capital:"رأس المال والخزينة", partners:"حركة الشركاء", reports:"التقارير والتقفيل", monthlyClosing:"التقفيل الشهري", yearlyClosing:"التقفيل السنوي", requests:"طلبات الموظفين", settings:"الإعدادات والروابط"
   };
   const schemas = {
     cars: {
@@ -126,6 +126,10 @@
   let saving = false;
   let reportYear = "ALL";
   let reportMonth = "ALL";
+  const currentLocal = new Date();
+  let closeYear = String(currentLocal.getMonth() === 0 ? currentLocal.getFullYear()-1 : currentLocal.getFullYear());
+  let closeMonth = currentLocal.getMonth() === 0 ? 12 : currentLocal.getMonth();
+  let closeAnnualYear = String(currentLocal.getFullYear()-1);
   let toastTimer = null;
 
   function toast(message, type) {
@@ -164,7 +168,12 @@
     ["cars","expenses","debts","capital","partnerMovements","documents"].forEach((key) => {
       if (!Array.isArray(base[key])) base[key] = [];
     });
-    if (!base.closings || typeof base.closings !== "object") base.closings = {annual:{},halves:{},months:{},snapshots:[]};
+    if (!base.closings || typeof base.closings !== "object") base.closings = {};
+    base.closings = Object.assign({annual:{},halves:{},months:{},snapshots:[],audit:[]},base.closings);
+    if (!base.closings.months || typeof base.closings.months !== "object") base.closings.months = {};
+    if (!base.closings.annual || typeof base.closings.annual !== "object") base.closings.annual = {};
+    if (!Array.isArray(base.closings.snapshots)) base.closings.snapshots = [];
+    if (!Array.isArray(base.closings.audit)) base.closings.audit = [];
     if (!base.appSettings || typeof base.appSettings !== "object") base.appSettings = {name:"IS Motors"};
     return base;
   }
@@ -422,6 +431,372 @@
 
   function formulaDetail(title, formula, explanation) {
     return '<details class="formula-detail"><summary>كيف حُسب ' + esc(title) + '؟</summary><div><strong>' + esc(formula) + '</strong><p>' + esc(explanation) + '</p></div></details>';
+  }
+
+  function recordDate(record) {
+    if (!record) return "";
+    return String(record.date || record.expense_date || record.dueDate || "").slice(0,10);
+  }
+
+  function monthKey(dateValue) {
+    const date = String(dateValue || "");
+    return /^\d{4}-\d{2}/.test(date) ? date.slice(0,7) : "";
+  }
+
+  function isPeriodLocked(dateValue) {
+    const date = recordDate({date:dateValue});
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+    const year = date.slice(0,4);
+    const month = date.slice(0,7);
+    return Boolean(
+      (state.closings && state.closings.annual && state.closings.annual[year]) ||
+      (state.closings && state.closings.months && state.closings.months[month])
+    );
+  }
+
+  function periodRecords(startDate,endDate) {
+    const inside = (record) => {
+      const date = recordDate(record);
+      return /^\d{4}-\d{2}-\d{2}$/.test(date) && date >= startDate && date <= endDate;
+    };
+    return {
+      cars:(state.cars || []).filter(inside),
+      expenses:(state.expenses || []).filter(inside),
+      debts:(state.debts || []).filter(inside),
+      capital:(state.capital || []).filter(inside),
+      partnerMovements:(state.partnerMovements || []).filter(inside)
+    };
+  }
+
+  function undatedFinancialRecords() {
+    const groups = [
+      ["سيارات",state.cars || []],
+      ["مصروفات",state.expenses || []],
+      ["ذمم",state.debts || []],
+      ["رأس المال",state.capital || []]
+    ];
+    return groups.reduce((all,group)=>all.concat(group[1].filter(item=>!recordDate(item)).map(item=>group[0])),[]);
+  }
+
+  function pendingRequestsForPeriod(startDate,endDate) {
+    return (requests || []).filter(request =>
+      request.status === "pending" &&
+      String(request.expense_date || "") >= startDate &&
+      String(request.expense_date || "") <= endDate
+    );
+  }
+
+  function buildPeriodSnapshot(startDate,endDate,label) {
+    const rows = periodRecords(startDate,endDate);
+    const sold = rows.cars.filter(isSoldCar);
+    const inventory = rows.cars.filter(car=>!isSoldCar(car));
+    const sales = sold.reduce((sum,car)=>sum+amount(car.salePrice),0);
+    const soldCost = sold.reduce((sum,car)=>sum+amount(car.purchasePrice)+amount(car.prepCost),0);
+    const allPurchaseCost = rows.cars.reduce((sum,car)=>sum+amount(car.purchasePrice)+amount(car.prepCost),0);
+    const operatingExpenses = rows.expenses.reduce((sum,expense)=>sum+amount(expense.amount),0);
+    const profitFromPeople = rows.capital.filter(entry=>entry.profitLossType==="ربح من شخص").reduce((sum,entry)=>sum+amount(entry.profitLossAmount),0);
+    const lossToPeople = rows.capital.filter(entry=>entry.profitLossType==="خسارة لشخص").reduce((sum,entry)=>sum+amount(entry.profitLossAmount),0);
+    const grossProfit = sales-soldCost;
+    const netResult = grossProfit-operatingExpenses+profitFromPeople-lossToPeople;
+    const carReceivables = rows.cars.reduce((sum,car)=>sum+carRemaining(car),0);
+    const receivableDebts = rows.debts.filter(debt=>String(debt.nature||"").includes("لنا")).reduce((sum,debt)=>sum+debtRemaining(debt),0);
+    const payableDebts = rows.debts.filter(debt=>String(debt.nature||"").includes("علينا")).reduce((sum,debt)=>sum+debtRemaining(debt),0);
+    const capitalIn = rows.capital.reduce((sum,entry)=>sum+amount(entry.deposited),0);
+    const capitalOut = rows.capital.reduce((sum,entry)=>sum+amount(entry.withdrawn),0);
+    const carPaidToDate = rows.cars.reduce((sum,car)=>sum+carPaid(car),0);
+    return {
+      label,startDate,endDate,
+      calculatedAt:new Date().toISOString(),
+      counts:{
+        cars:rows.cars.length,soldCars:sold.length,inventoryCars:inventory.length,
+        expenses:rows.expenses.length,debts:rows.debts.length,capitalEntries:rows.capital.length,
+        partnerMovements:rows.partnerMovements.length
+      },
+      sales,soldCost,allPurchaseCost,inventoryCost:allPurchaseCost-soldCost,
+      grossProfit,operatingExpenses,profitFromPeople,lossToPeople,netResult,
+      carReceivables,receivableDebts,payableDebts,totalReceivables:carReceivables+receivableDebts,
+      carPaidToDate,capitalIn,capitalOut,capitalNet:capitalIn-capitalOut+profitFromPeople-lossToPeople,
+      partnerBalances:(partnerBalances() || []).map(item=>({
+        partner:item.partner,contributed:item.contributed,withdrawn:item.withdrawn,balance:item.balance
+      })),
+      sourceIds:{
+        cars:rows.cars.map(item=>String(item.id)),
+        expenses:rows.expenses.map(item=>String(item.id)),
+        debts:rows.debts.map(item=>String(item.id)),
+        capital:rows.capital.map(item=>String(item.id)),
+        partnerMovements:rows.partnerMovements.map(item=>String(item.id))
+      }
+    };
+  }
+
+  function monthDateRange(key) {
+    const parts = String(key || "").split("-");
+    const year = Number(parts[0]), month = Number(parts[1]);
+    if (!year || month<1 || month>12) return null;
+    const lastDay = new Date(year,month,0).getDate();
+    return {start:year+"-"+String(month).padStart(2,"0")+"-01",end:year+"-"+String(month).padStart(2,"0")+"-"+String(lastDay).padStart(2,"0")};
+  }
+
+  function monthLabel(key) {
+    const parts = String(key || "").split("-");
+    const names = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+    return (names[Number(parts[1])-1] || "شهر") + " " + (parts[0] || "");
+  }
+
+  function activityMonthsForYear(year) {
+    const keys = new Set();
+    const groups = [state.cars || [],state.expenses || [],state.debts || [],state.capital || []];
+    groups.forEach(group=>group.forEach(item=>{
+      const key = monthKey(recordDate(item));
+      if (key && key.slice(0,4)===String(year)) keys.add(key);
+    }));
+    return Array.from(keys).sort();
+  }
+
+  function closingReadiness(startDate,endDate) {
+    const missingDates = undatedFinancialRecords().length;
+    const pending = pendingRequestsForPeriod(startDate,endDate);
+    const blockers = [];
+    if (missingDates) blockers.push("يوجد "+missingDates+" سجل مالي بلا تاريخ؛ حدّد تاريخه قبل التقفيل حتى لا يُستبعد من الفترة.");
+    if (pending.length) blockers.push("يوجد "+pending.length+" طلب مصروف موظف معلق داخل الفترة؛ اعتمده أو ارفضه قبل التقفيل.");
+    return {blockers,missingDates,pending};
+  }
+
+  function auditClosing(action,period,key,reason,snapshot) {
+    state.closings = Object.assign({annual:{},months:{},halves:{},snapshots:[],audit:[]},state.closings || {});
+    if (!Array.isArray(state.closings.audit)) state.closings.audit = [];
+    state.closings.audit.unshift({
+      id:makeId(),action,period,key,reason:reason || "",
+      user:session && session.user ? (session.user.email || session.user.id) : "admin",
+      at:new Date().toISOString(),
+      snapshot:snapshot || null
+    });
+    state.closings.audit = state.closings.audit.slice(0,200);
+  }
+
+  function renderClosingSnapshot(snapshot) {
+    if (!snapshot) return '<div class="empty-state">لا توجد لقطة رقمية محفوظة لهذا التقفيل القديم. ستظهر تفاصيل اللقطة عند إتمام تقفيل جديد.</div>';
+    const lines = [
+      ["إيرادات بيع السيارات",snapshot.sales,"positive","مجموع أسعار السيارات التي سُجلت بحالة بيع داخل الفترة."],
+      ["تكلفة السيارات المباعة",snapshot.soldCost,"","الشراء والتجهيز للسيارات المباعة في الفترة."],
+      ["المخزون غير المباع",snapshot.inventoryCost,"","قيمة الشراء والتجهيز للسيارات التي لم تُسجل كمباعة."],
+      ["مجمل ربح أو خسارة السيارات",snapshot.grossProfit,snapshot.grossProfit>=0?"positive":"negative","الإيرادات ناقص تكلفة السيارات المباعة."],
+      ["مصروفات التشغيل",snapshot.operatingExpenses,"negative","مجموع المصروفات المسجلة في الفترة."],
+      ["أرباح من أشخاص",snapshot.profitFromPeople,"positive","الأرباح الإضافية المسجلة في حركة رأس المال."],
+      ["خسائر لأشخاص",snapshot.lossToPeople,"negative","الخسائر الإضافية المسجلة في حركة رأس المال."],
+      ["صافي نتيجة الفترة",snapshot.netResult,snapshot.netResult>=0?"positive":"negative","مجمل الربح ناقص المصروفات، مضافًا إليه الأرباح ومطروحًا منه الخسائر."]
+    ];
+    return '<div class="closing-lines">'+lines.map(line=>
+      '<div class="closing-result-line"><div><strong>'+esc(line[0])+'</strong><small>'+esc(line[3])+'</small></div><b class="'+line[2]+'">'+money(line[1])+'</b></div>'
+    ).join("")+'</div>'+
+    '<div class="closing-secondary-grid">'+
+      '<div><span>المتبقي على سيارات الفترة وقت التقفيل</span><b>'+money(snapshot.carReceivables)+'</b></div>'+
+      '<div><span>الذمم المستحقة لنا</span><b>'+money(snapshot.receivableDebts)+'</b></div>'+
+      '<div><span>الذمم المستحقة علينا</span><b>'+money(snapshot.payableDebts)+'</b></div>'+
+      '<div><span>المبالغ المسددة على سيارات الفترة حتى وقت التقفيل (تراكمي)</span><b>'+money(snapshot.carPaidToDate)+'</b></div>'+
+      '<div><span>إيداعات رأس المال في الفترة</span><b class="positive">'+money(snapshot.capitalIn)+'</b></div>'+
+      '<div><span>مسحوبات رأس المال في الفترة</span><b class="negative">'+money(snapshot.capitalOut)+'</b></div>'+
+      '<div><span>صافي حركة رأس المال بعد الأرباح والخسائر</span><b class="'+(snapshot.capitalNet>=0?"positive":"negative")+'">'+money(snapshot.capitalNet)+'</b></div>'+
+      '<div><span>عدد السيارات / المباعة / المخزون</span><b>'+snapshot.counts.cars+' / '+snapshot.counts.soldCars+' / '+snapshot.counts.inventoryCars+'</b></div>'+
+      '<div><span>عدد قيود المصروفات والذمم ورأس المال</span><b>'+snapshot.counts.expenses+' / '+snapshot.counts.debts+' / '+snapshot.counts.capitalEntries+'</b></div>'+
+    '</div>'+
+    '<p class="panel-note section-gap">الأرقام لقطة محفوظة في تاريخ التقفيل. المدفوع على سيارات الفترة رصيد تراكمي حالي عند التقفيل، وليس كشف تحصيلات يومية؛ التطبيق لا يحتوي حتى الآن على دفتر مستقل لتاريخ كل دفعة تحصيل.</p>';
+  }
+
+  async function closeMonthlyPeriod() {
+    if (saving) return;
+    const key = closeYear+"-"+String(closeMonth).padStart(2,"0");
+    const bounds = monthDateRange(key);
+    if (!bounds) return;
+    if (key >= today().slice(0,7)) {
+      toast("لا يمكن تقفيل الشهر الحالي أو شهر مستقبلي قبل انتهاء الفترة.", "error");
+      return;
+    }
+    if (state.closings.annual[key.slice(0,4)]) {
+      toast("السنة مقفلة بالفعل؛ أعد فتح السنة أولاً قبل إجراء أي تغيير على شهرها.", "error");
+      return;
+    }
+    if (state.closings.months[key]) {
+      toast("هذا الشهر مقفل بالفعل.", "error");
+      return;
+    }
+    const readiness = closingReadiness(bounds.start,bounds.end);
+    if (readiness.blockers.length) {
+      toast(readiness.blockers.join(" "), "error");
+      return;
+    }
+    const snapshot = buildPeriodSnapshot(bounds.start,bounds.end,monthLabel(key));
+    if (!confirm("سيتم حفظ لقطة نهائية لشهر "+monthLabel(key)+" ومنع إضافة أو تعديل أو حذف قيود هذا الشهر. هل تريد إتمام التقفيل؟")) return;
+    const previous = clone(state);
+    state.closings.months[key] = {
+      locked:true,period:"month",key,closedAt:new Date().toISOString(),
+      closedBy:session.user.email || session.user.id,snapshot
+    };
+    auditClosing("close","month",key,"",snapshot);
+    const saved = await saveState(true);
+    if (!saved) { state=previous;render();toast("تعذر حفظ التقفيل في قاعدة البيانات.","error");return; }
+    render();
+    toast("تم تقفيل "+monthLabel(key)+" وحفظ اللقطة المالية.", "success");
+  }
+
+  async function reopenMonthlyPeriod() {
+    if (saving) return;
+    const key = closeYear+"-"+String(closeMonth).padStart(2,"0");
+    const closure = state.closings.months[key];
+    if (!closure) return;
+    if (state.closings.annual[key.slice(0,4)]) {
+      toast("أعد فتح التقفيل السنوي أولاً.", "error");
+      return;
+    }
+    const reason = prompt("اكتب سبب إعادة فتح "+monthLabel(key)+":");
+    if (reason === null) return;
+    if (String(reason).trim().length < 4) {
+      toast("يجب كتابة سبب واضح لإعادة الفتح (4 أحرف على الأقل).", "error");
+      return;
+    }
+    if (!confirm("سيتم إعادة فتح الشهر والسماح بتعديل سجلاته. هل أنت متأكد؟")) return;
+    const previous = clone(state);
+    auditClosing("reopen","month",key,String(reason).trim(),closure.snapshot || null);
+    delete state.closings.months[key];
+    const saved = await saveState(true);
+    if (!saved) { state=previous;render();toast("تعذر حفظ إعادة الفتح.","error");return; }
+    render();
+    toast("تمت إعادة فتح الشهر وتسجيل السبب في سجل المراجعة.", "success");
+  }
+
+  async function closeAnnualPeriod() {
+    if (saving) return;
+    const year = String(closeAnnualYear);
+    if (Number(year) >= new Date().getFullYear()) {
+      toast("لا يمكن تقفيل السنة الحالية قبل انتهائها.", "error");
+      return;
+    }
+    if (state.closings.annual[year]) {
+      toast("هذه السنة مقفلة بالفعل.", "error");
+      return;
+    }
+    const months = activityMonthsForYear(year);
+    const unclosed = months.filter(key=>!state.closings.months[key]);
+    if (unclosed.length) {
+      toast("يجب تقفيل الأشهر ذات الحركات أولاً: "+unclosed.map(monthLabel).join("، "), "error");
+      return;
+    }
+    const start = year+"-01-01", end = year+"-12-31";
+    const readiness = closingReadiness(start,end);
+    if (readiness.blockers.length) {
+      toast(readiness.blockers.join(" "), "error");
+      return;
+    }
+    const snapshot = buildPeriodSnapshot(start,end,"السنة "+year);
+    snapshot.monthsIncluded = months.slice();
+    if (!confirm("سيتم حفظ التقفيل السنوي لعام "+year+" وقفل كل سجلات السنة. هل تريد الاستمرار؟")) return;
+    const previous = clone(state);
+    state.closings.annual[year] = {
+      locked:true,period:"year",key:year,closedAt:new Date().toISOString(),
+      closedBy:session.user.email || session.user.id,snapshot,monthsIncluded:months
+    };
+    auditClosing("close","year",year,"",snapshot);
+    const saved = await saveState(true);
+    if (!saved) { state=previous;render();toast("تعذر حفظ التقفيل السنوي.","error");return; }
+    render();
+    toast("تم تقفيل سنة "+year+" وحفظ اللقطة المالية.", "success");
+  }
+
+  async function reopenAnnualPeriod() {
+    if (saving) return;
+    const year = String(closeAnnualYear);
+    const closure = state.closings.annual[year];
+    if (!closure) return;
+    const reason = prompt("اكتب سبب إعادة فتح سنة "+year+":");
+    if (reason === null) return;
+    if (String(reason).trim().length < 4) {
+      toast("يجب كتابة سبب واضح لإعادة الفتح (4 أحرف على الأقل).", "error");
+      return;
+    }
+    if (!confirm("سيتم إعادة فتح السنة. الأشهر المقفلة ستظل مقفلة حتى تعيد فتح كل شهر على حدة. هل أنت متأكد؟")) return;
+    const previous = clone(state);
+    auditClosing("reopen","year",year,String(reason).trim(),closure.snapshot || null);
+    delete state.closings.annual[year];
+    const saved = await saveState(true);
+    if (!saved) { state=previous;render();toast("تعذر حفظ إعادة فتح السنة.","error");return; }
+    render();
+    toast("تمت إعادة فتح السنة. افتح الأشهر المطلوبة منفردة عند الحاجة.", "success");
+  }
+
+  function renderMonthlyClosing() {
+    const key = closeYear+"-"+String(closeMonth).padStart(2,"0");
+    const bounds = monthDateRange(key);
+    const closure = state.closings.months[key];
+    const locked = Boolean(closure);
+    const snapshot = locked ? closure.snapshot : buildPeriodSnapshot(bounds.start,bounds.end,monthLabel(key));
+    const readiness = closingReadiness(bounds.start,bounds.end);
+    const canClose = !locked && key < today().slice(0,7) && !state.closings.annual[closeYear] && readiness.blockers.length===0;
+    const years = new Set([String(new Date().getFullYear())]);
+    (state.cars||[]).concat(state.expenses||[],state.debts||[],state.capital||[]).forEach(item=>{
+      const date=recordDate(item);if(/^\d{4}/.test(date))years.add(date.slice(0,4));
+    });
+    const yearOptions=Array.from(years).sort((a,b)=>b.localeCompare(a)).map(year=>'<option value="'+year+'"'+(year===closeYear?" selected":"")+'>'+year+'</option>').join("");
+    const monthNames=["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+    const monthOptions=monthNames.map((name,index)=>'<option value="'+(index+1)+'"'+(index+1===closeMonth?" selected":"")+'>'+name+'</option>').join("");
+    const blockers=readiness.blockers.length ? '<div class="closing-alert"><strong>ملاحظات تمنع التقفيل</strong><ul>'+readiness.blockers.map(item=>'<li>'+esc(item)+'</li>').join("")+'</ul></div>' :
+      '<div class="closing-ok">لا توجد طلبات موظفين معلقة أو سجلات مالية بلا تاريخ ضمن فحص الجاهزية.</div>';
+    const action=locked
+      ? (state.closings.annual[closeYear] ? '<span class="panel-note">السنة مقفلة؛ يجب إعادة فتح السنة أولاً.</span>' : '<button class="btn btn-outline" data-action="reopen-month">إعادة فتح الشهر بسبب موثّق</button>')
+      : '<button class="btn btn-primary" data-action="close-month"'+(canClose?"":" disabled")+'>مراجعة وتقفيل الشهر</button>';
+    return heading("التقفيل الشهري","مراجعة نتائج الشهر وحفظ لقطة مالية ثابتة قبل منع تعديل سجلاته.",'<button class="btn btn-outline btn-small" data-action="print">طباعة الكشف</button>')+
+      '<section class="panel closing-period-picker"><div><strong>اختر الفترة</strong><p class="panel-note">يُقفل الشهر بعد انتهائه فقط، ويمكن مراجعة أي شهر سابق.</p></div><div class="closing-selects"><label>الشهر<select id="closeMonthSelect" class="search-input">'+monthOptions+'</select></label><label>السنة<select id="closeYearSelect" class="search-input">'+yearOptions+'</select></label></div></section>'+
+      '<div class="closing-status-panel"><div><span class="eyebrow">حالة الفترة</span><h3>'+esc(monthLabel(key))+'</h3><p>'+(locked?"تم التقفيل في "+esc(closure.closedAt||"سابقاً"):"الفترة مفتوحة للمراجعة")+'</p></div>'+badge(locked?"مقفل":(key>=today().slice(0,7)?"لم ينته الشهر":"مفتوح"),locked?"ok":"warn")+'</div>'+
+      '<div class="kpi-grid">'+
+      kpi("إيرادات البيع",money(snapshot.sales),snapshot.counts.soldCars+" سيارة مباعة","blue")+
+      kpi("مجمل الربح",money(snapshot.grossProfit),"بعد تكلفة السيارات المباعة",snapshot.grossProfit>=0?"green":"red")+
+      kpi("مصروفات التشغيل",money(snapshot.operatingExpenses),"مصروفات الفترة","red")+
+      kpi("صافي النتيجة",money(snapshot.netResult),"بعد الأرباح والخسائر الإضافية",snapshot.netResult>=0?"green":"red")+
+      kpi("المتبقي المستحق",money(snapshot.totalReceivables),"سيارات وذمم الفترة","gold")+
+      '</div>'+
+      '<section class="panel section-gap"><div class="section-title-row"><div><h3>كشف المراجعة المالية</h3><p class="panel-note">راجع كل المبالغ قبل اعتماد الإغلاق.</p></div>'+badge(locked?"لقطة ثابتة":"معاينة قبل التقفيل",locked?"ok":"gold")+'</div>'+renderClosingSnapshot(snapshot)+'</section>'+
+      '<section class="panel section-gap"><div class="section-title-row"><div><h3>قائمة التحقق قبل الإقفال</h3><p class="panel-note">تُفحص الطلبات والسجلات التي لا تحمل تاريخًا.</p></div>'+action+'</div>'+blockers+'</section>'+
+      (locked?'<section class="panel section-gap"><h3>بيانات التقفيل</h3><div class="summary-list"><div class="summary-line"><span>نفّذ التقفيل</span><strong>'+esc(closure.closedBy||"غير مسجل")+'</strong></div><div class="summary-line"><span>وقت التقفيل</span><strong>'+esc(closure.closedAt||"غير متاح")+'</strong></div></div></section>':'');
+  }
+
+  function renderYearlyClosing() {
+    const year=String(closeAnnualYear);
+    const closure=state.closings.annual[year];
+    const locked=Boolean(closure);
+    const start=year+"-01-01",end=year+"-12-31";
+    const months=activityMonthsForYear(year);
+    const unclosed=months.filter(key=>!state.closings.months[key]);
+    const readiness=closingReadiness(start,end);
+    const snapshot=locked?closure.snapshot:buildPeriodSnapshot(start,end,"السنة "+year);
+    const notEnded=Number(year)>=new Date().getFullYear();
+    const blockers=readiness.blockers.slice();
+    if(unclosed.length) blockers.unshift("الأشهر التي تحتوي على حركات ولم تُقفل: "+unclosed.map(monthLabel).join("، "));
+    if(notEnded) blockers.unshift("يجب انتهاء السنة أولاً قبل اعتماد التقفيل السنوي.");
+    const canClose=!locked&&!notEnded&&!unclosed.length&&!readiness.blockers.length;
+    const years=new Set([String(new Date().getFullYear()-1),String(new Date().getFullYear())]);
+    (state.cars||[]).concat(state.expenses||[],state.debts||[],state.capital||[]).forEach(item=>{
+      const date=recordDate(item);if(/^\d{4}/.test(date))years.add(date.slice(0,4));
+    });
+    const yearOptions=Array.from(years).sort((a,b)=>b.localeCompare(a)).map(y=>'<option value="'+y+'"'+(y===year?" selected":"")+'>'+y+'</option>').join("");
+    const monthlyRows=months.length?months.map(key=>'<div class="summary-line"><span>'+esc(monthLabel(key))+'</span>'+badge(state.closings.months[key]?"مقفل":"مفتوح",state.closings.months[key]?"ok":"warn")+'</div>').join(""):empty("لا توجد حركات مالية مؤرخة في هذه السنة.");
+    const action=locked
+      ? '<button class="btn btn-outline" data-action="reopen-year">إعادة فتح السنة بسبب موثّق</button>'
+      : '<button class="btn btn-primary" data-action="close-year"'+(canClose?"":" disabled")+'>اعتماد التقفيل السنوي</button>';
+    const previous=state.closings.annual[String(Number(year)-1)];
+    const previousText=previous&&previous.snapshot?'<section class="panel section-gap"><h3>مقارنة مع السنة السابقة</h3><div class="summary-list"><div class="summary-line"><span>صافي نتيجة '+(Number(year)-1)+'</span><strong>'+money(previous.snapshot.netResult)+'</strong></div><div class="summary-line"><span>صافي نتيجة '+year+'</span><strong class="'+(snapshot.netResult>=0?"positive":"negative")+'">'+money(snapshot.netResult)+'</strong></div><div class="summary-line"><span>التغير بين السنتين</span><strong class="'+(snapshot.netResult-previous.snapshot.netResult>=0?"positive":"negative")+'">'+money(snapshot.netResult-previous.snapshot.netResult)+'</strong></div></div></section>':"";
+    return heading("التقفيل السنوي","تجميع نتائج السنة من الأشهر المقفلة، ومراجعة صافي الربح والذمم ورأس المال.",'<button class="btn btn-outline btn-small" data-action="print">طباعة التقرير السنوي</button>')+
+      '<section class="panel closing-period-picker"><div><strong>السنة المالية</strong><p class="panel-note">يشترط تقفيل كل شهر به حركة مالية قبل اعتماد السنة.</p></div><label>السنة<select id="closeAnnualYearSelect" class="search-input">'+yearOptions+'</select></label></section>'+
+      '<div class="closing-status-panel"><div><span class="eyebrow">حالة السنة</span><h3>'+esc(year)+'</h3><p>'+(locked?"تم التقفيل في "+esc(closure.closedAt||"سابقاً"):"السنة مفتوحة للمراجعة")+'</p></div>'+badge(locked?"مقفل":(notEnded?"لم تنته السنة":"جاهز للمراجعة"),locked?"ok":"warn")+'</div>'+
+      '<div class="kpi-grid">'+
+      kpi("إيرادات السنة",money(snapshot.sales),snapshot.counts.soldCars+" سيارة مباعة","blue")+
+      kpi("مجمل ربح السيارات",money(snapshot.grossProfit),"المبيعات ناقص التكلفة",snapshot.grossProfit>=0?"green":"red")+
+      kpi("مصروفات السنة",money(snapshot.operatingExpenses),"كل مصروفات التشغيل","red")+
+      kpi("صافي نتيجة السنة",money(snapshot.netResult),"النتيجة بعد الربح والخسارة الإضافية",snapshot.netResult>=0?"green":"red")+
+      kpi("إجمالي المستحقات",money(snapshot.totalReceivables),"مبالغ باقية وذمم","gold")+
+      '</div>'+
+      '<div class="two-col section-gap"><section class="panel"><h3>حالة الأشهر ذات الحركة</h3><div class="summary-list">'+monthlyRows+'</div></section><section class="panel"><h3>شروط اعتماد السنة</h3>'+ (blockers.length?'<div class="closing-alert"><ul>'+blockers.map(x=>'<li>'+esc(x)+'</li>').join("")+'</ul></div>':'<div class="closing-ok">كل الأشهر ذات الحركات مقفلة، ولا توجد طلبات معلقة أو سجلات بلا تاريخ.</div>')+'<div class="section-gap">'+action+'</div></section></div>'+
+      '<section class="panel section-gap"><h3>القائمة السنوية التفصيلية</h3>'+renderClosingSnapshot(snapshot)+'</section>'+
+      previousText+
+      (locked?'<section class="panel section-gap"><h3>بيانات التقفيل السنوي</h3><div class="summary-list"><div class="summary-line"><span>نفّذ التقفيل</span><strong>'+esc(closure.closedBy||"غير مسجل")+'</strong></div><div class="summary-line"><span>وقت التقفيل</span><strong>'+esc(closure.closedAt||"غير متاح")+'</strong></div></div></section>':'');
   }
 
   function renderOverview() {
