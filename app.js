@@ -28,7 +28,7 @@
     const n = Number(normalized);
     return Number.isFinite(n) ? n : 0;
   };
-  const money = (value) => num(value).toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 2}) + " ج.م";
+  const money = (value) => num(value).toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 2}) + (uiLanguage==="en" ? " EGP" : " ج.م");
   const esc = (value) => String(value == null ? "" : value).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const dateText = (value) => value ? esc(value) : "—";
   const makeId = () => "row_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
@@ -41,7 +41,12 @@
   function translateText(value){
     let output=String(value==null?"":value);
     const map=uiLanguage==="en"?LANGUAGE_PAIRS:LANGUAGE_PAIRS.map(pair=>[pair[1],pair[0]]);
-    map.slice().sort((a,b)=>b[0].length-a[0].length).forEach(pair=>{if(pair[0]&&pair[0]!==pair[1])output=output.split(pair[0]).join(pair[1]);});
+    map.slice().sort((a,b)=>b[0].length-a[0].length).forEach(pair=>{
+      if(!pair[0]||pair[0]===pair[1])return;
+      const singleWord=!/\\s/.test(pair[0])&&pair[0].length<=8;
+      if(singleWord){if(output.trim()===pair[0])output=output.replace(pair[0],pair[1]);}
+      else output=output.split(pair[0]).join(pair[1]);
+    });
     return output;
   }
   function translateDOM(root){
