@@ -475,7 +475,7 @@
       ["ذمم",state.debts || []],
       ["رأس المال",state.capital || []]
     ];
-    return groups.reduce((all,group)=>all.concat(group[1].filter(item=>!/^\\d{4}-\\d{2}-\\d{2}$/.test(recordDate(item))).map(item=>group[0])),[]);
+    return groups.reduce((all,group)=>all.concat(group[1].filter(item=>!/^\d{4}-\d{2}-\d{2}$/.test(recordDate(item))).map(item=>group[0])),[]);
   }
 
   function pendingRequestsForPeriod(startDate,endDate) {
