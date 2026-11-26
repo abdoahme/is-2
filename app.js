@@ -289,6 +289,10 @@
       if (!silent) toast("تم حفظ التعديلات في قاعدة البيانات.", "success");
       if(persistedState) await writeStateAudit(persistedState,payload);
       persistedState=clone(payload);
+      if(financialLedgerLoaded){
+        try{await syncCashbookWithAppState(payload);}
+        catch(ledgerError){console.warn("cashbook sync pending",ledgerError.message);toast("تم حفظ بيانات النظام، لكن تعذر تحديث دفتر الحركة تلقائيًا. راجع حالة الاتصال.", "error");}
+      }
       return true;
     } catch (error) {
       setSync("تعذر الحفظ", "offline");
@@ -454,7 +458,7 @@
 
     try{
       const localDate=today();
-      const daily=backupEntries.find(item=>item.backup_type==="daily" && new Date(item.created_at).toLocaleDateString("en-CA")===localDate);
+      const daily=backupEntries.find(item=>item.backup_type==="daily" && new Date(item.created_at).toISOString().slice(0,10)===new Date().toISOString().slice(0,10));
       if(!daily){
         const payload={state:clone(state),financialTransactions:clone(financialTransactions),cashReconciliations:clone(cashReconciliations)};
         const backup=await db.from("app_backups").insert({
@@ -477,6 +481,24 @@
       totals[target]+=amount(item.amount);
     });
     return totals;
+  }
+
+  function currentCarPaymentRows(carId) {
+    const reversed=new Set(financialTransactions.filter(tx=>tx.reversal_of).map(tx=>String(tx.reversal_of)));
+    return financialTransactions.filter(tx=>
+      String(tx.car_id||"")===String(carId) &&
+      (tx.category==="car_collection" || (tx.category==="reversal" && (tx.source_type==="car" || tx.source_type==="car_collection"))) &&
+      !reversed.has(String(tx.id))
+    ).sort((a,b)=>String(a.transaction_date||"").localeCompare(String(b.transaction_date||"")));
+  }
+
+  function carAcquisitionPaid(carId) {
+    const reversed=new Set(financialTransactions.filter(tx=>tx.reversal_of).map(tx=>String(tx.reversal_of)));
+    return financialTransactions.filter(tx=>
+      String(tx.car_id||"")===String(carId) &&
+      ["car_purchase","car_prep"].includes(tx.category) &&
+      !reversed.has(String(tx.id))
+    ).reduce((sum,tx)=>sum+(tx.direction==="outflow"?amount(tx.amount):-amount(tx.amount)),0);
   }
 
   function customerGroups() {
