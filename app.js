@@ -553,7 +553,7 @@
 
   $("loginForm").addEventListener("submit", async (event)=>{
     event.preventDefault();
-    const button=$("loginForm").querySelector("button[type=submit>");
+    const button=$("loginForm").querySelector('button[type="submit"]');
     const errorBox=$("loginError");errorBox.textContent="";
     const email=$("loginEmail").value.trim();const password=$("loginPassword").value;
     button.disabled=true;button.textContent="جارٍ تسجيل الدخول...";
