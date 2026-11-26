@@ -584,7 +584,7 @@
   }
 
   function renderClosingSnapshot(snapshot) {
-    if (!snapshot) return '<div class="empty-state">لا توجد لقطة رقمية محفوظة لهذا التقفيل القديم. ستظهر تفاصيل اللقطة عند إتمام تقفيل جديد.</div>';
+    if (!snapshot) return '<div class="empty-state">هذا تقفيل قديم لا يحتوي على لقطة رقمية ثابتة؛ لا يمكن عرض سجلاته الحالية على أنها أرقام تاريخية معتمدة.</div>';
     const lines = [
       ["إيرادات بيع السيارات",snapshot.sales,"positive","مجموع أسعار السيارات التي سُجلت بحالة بيع داخل الفترة."],
       ["تكلفة السيارات المباعة",snapshot.soldCost,"","الشراء والتجهيز للسيارات المباعة في الفترة."],
@@ -595,6 +595,9 @@
       ["خسائر لأشخاص",snapshot.lossToPeople,"negative","الخسائر الإضافية المسجلة في حركة رأس المال."],
       ["صافي نتيجة الفترة",snapshot.netResult,snapshot.netResult>=0?"positive":"negative","مجمل الربح ناقص المصروفات، مضافًا إليه الأرباح ومطروحًا منه الخسائر."]
     ];
+    const partnerHtml = snapshot.partnerBalances && snapshot.partnerBalances.length
+      ? '<section class="partner-snapshot"><h4>أرصدة الشركاء وقت التقفيل</h4><div class="summary-list">'+snapshot.partnerBalances.map(item=>'<div class="summary-line"><span>'+esc(item.partner)+' · مساهمات '+money(item.contributed)+' · مسحوبات '+money(item.withdrawn)+'</span><strong class="'+(item.balance>=0?"positive":"negative")+'">'+money(item.balance)+'</strong></div>').join("")+'</div></section>'
+      : '<p class="panel-note section-gap">لا توجد أرصدة شركاء مسجلة في اللقطة.</p>';
     return '<div class="closing-lines">'+lines.map(line=>
       '<div class="closing-result-line"><div><strong>'+esc(line[0])+'</strong><small>'+esc(line[3])+'</small></div><b class="'+line[2]+'">'+money(line[1])+'</b></div>'
     ).join("")+'</div>'+
@@ -608,8 +611,8 @@
       '<div><span>صافي حركة رأس المال بعد الأرباح والخسائر</span><b class="'+(snapshot.capitalNet>=0?"positive":"negative")+'">'+money(snapshot.capitalNet)+'</b></div>'+
       '<div><span>عدد السيارات / المباعة / المخزون</span><b>'+snapshot.counts.cars+' / '+snapshot.counts.soldCars+' / '+snapshot.counts.inventoryCars+'</b></div>'+
       '<div><span>عدد قيود المصروفات والذمم ورأس المال</span><b>'+snapshot.counts.expenses+' / '+snapshot.counts.debts+' / '+snapshot.counts.capitalEntries+'</b></div>'+
-    '</div>'+
-    '<p class="panel-note section-gap">الأرقام لقطة محفوظة في تاريخ التقفيل. المدفوع على سيارات الفترة رصيد تراكمي حالي عند التقفيل، وليس كشف تحصيلات يومية؛ التطبيق لا يحتوي حتى الآن على دفتر مستقل لتاريخ كل دفعة تحصيل.</p>';
+    '</div>'+partnerHtml+
+    '<p class="panel-note section-gap">الأرقام لقطة محفوظة في تاريخ التقفيل. المدفوع على سيارات الفترة رصيد تراكمي عند التقفيل، وليس كشف تحصيلات يومية؛ التطبيق لا يحتوي حتى الآن على دفتر مستقل لتاريخ كل دفعة تحصيل.</p>';
   }
 
   async function closeMonthlyPeriod() {
@@ -737,7 +740,8 @@
     const bounds = monthDateRange(key);
     const closure = state.closings.months[key];
     const locked = Boolean(closure);
-    const snapshot = locked ? (closure.snapshot || buildPeriodSnapshot(bounds.start,bounds.end,monthLabel(key))) : buildPeriodSnapshot(bounds.start,bounds.end,monthLabel(key));
+    const hasSavedSnapshot = Boolean(locked && closure && closure.snapshot);
+    const snapshot = hasSavedSnapshot ? closure.snapshot : buildPeriodSnapshot(bounds.start,bounds.end,monthLabel(key));
     const readiness = closingReadiness(bounds.start,bounds.end);
     const canClose = !locked && key < today().slice(0,7) && !state.closings.annual[closeYear] && readiness.blockers.length===0;
     const years = new Set([String(new Date().getFullYear())]);
@@ -776,7 +780,8 @@
     const months=activityMonthsForYear(year);
     const unclosed=months.filter(key=>!state.closings.months[key]);
     const readiness=closingReadiness(start,end);
-    const snapshot=locked?(closure.snapshot || buildPeriodSnapshot(start,end,"السنة "+year)):buildPeriodSnapshot(start,end,"السنة "+year);
+    const hasSavedSnapshot=Boolean(locked && closure && closure.snapshot);
+    const snapshot=hasSavedSnapshot?closure.snapshot:buildPeriodSnapshot(start,end,"السنة "+year);
     const notEnded=Number(year)>=new Date().getFullYear();
     const blockers=readiness.blockers.slice();
     if(unclosed.length) blockers.unshift("الأشهر التي تحتوي على حركات ولم تُقفل: "+unclosed.map(monthLabel).join("، "));
@@ -804,7 +809,7 @@
       kpi("إجمالي المستحقات",money(snapshot.totalReceivables),"مبالغ باقية وذمم","gold")+
       '</div>'+
       '<div class="two-col section-gap"><section class="panel"><h3>حالة الأشهر ذات الحركة</h3><div class="summary-list">'+monthlyRows+'</div></section><section class="panel"><h3>شروط اعتماد السنة</h3>'+ (blockers.length?'<div class="closing-alert"><ul>'+blockers.map(x=>'<li>'+esc(x)+'</li>').join("")+'</ul></div>':'<div class="closing-ok">كل الأشهر ذات الحركات مقفلة، ولا توجد طلبات معلقة أو سجلات بلا تاريخ.</div>')+'<div class="section-gap">'+action+'</div></section></div>'+
-      '<section class="panel section-gap"><h3>القائمة السنوية التفصيلية</h3>'+renderClosingSnapshot(snapshot)+'</section>'+
+      '<section class="panel section-gap"><h3>القائمة السنوية التفصيلية</h3>'+renderClosingSnapshot(locked&&!hasSavedSnapshot?null:snapshot)+'</section>'+
       previousText+
       (locked?'<section class="panel section-gap"><h3>بيانات التقفيل السنوي</h3><div class="summary-list"><div class="summary-line"><span>نفّذ التقفيل</span><strong>'+esc(closure.closedBy||"غير مسجل")+'</strong></div><div class="summary-line"><span>وقت التقفيل</span><strong>'+esc(closure.closedAt||"غير متاح")+'</strong></div></div></section>':'')+
       renderClosingAuditLog("year",year);
@@ -959,7 +964,7 @@
     };
     const cars = state.cars.filter(c=>inPeriod(c.date));
     const expenses = state.expenses.filter(e=>inPeriod(e.date));
-    const debts = state.debts.filter(d=>inPeriod(d.dueDate || d.date));
+    const debts = state.debts.filter(d=>inPeriod(d.date || d.dueDate));
     const capital = state.capital.filter(c=>inPeriod(c.date));
     const sold = cars.filter(isSoldCar);
     const revenue = sold.reduce((s,c)=>s+amount(c.salePrice),0);
