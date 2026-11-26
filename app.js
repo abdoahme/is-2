@@ -192,6 +192,7 @@
   let staffRows = [];
   let aiConversation = [];
   let financialTransactions = [];
+  const reversalLocks = new Set();
   let cashReconciliations = [];
   let auditEntries = [];
   let backupEntries = [];
@@ -487,15 +488,21 @@
 
   async function reverseFinancialTransaction(original,reason) {
     if (!original || original.category==="reversal") return null;
-    if (financialTransactions.some(t=>String(t.reversal_of||"")===String(original.id))) return null;
-    return insertFinancialTransaction({
-      transaction_date:today(),direction:original.direction==="inflow"?"outflow":"inflow",
-      category:"reversal",payment_method:original.payment_method||"other",amount:amount(original.amount),
-      car_id:original.car_id||null,person_name:original.person_name||"",
-      description:"عكس حركة "+(original.description||original.category)+" — "+String(reason||"تسوية محاسبية"),
-      reference:original.reference||null,source_type:original.source_type||"manual",
-      source_id:original.source_id||original.id,reversal_of:original.id,is_legacy:false
-    });
+    const originalId=String(original.id);
+    if (!originalId || reversalLocks.has(originalId) || financialTransactions.some(t=>String(t.reversal_of||"")===originalId)) return null;
+    reversalLocks.add(originalId);
+    try {
+      return await insertFinancialTransaction({
+        transaction_date:today(),direction:original.direction==="inflow"?"outflow":"inflow",
+        category:"reversal",payment_method:original.payment_method||"other",amount:amount(original.amount),
+        car_id:original.car_id||null,person_name:original.person_name||"",
+        description:"عكس حركة "+(original.description||original.category)+" — "+String(reason||"تسوية محاسبية"),
+        reference:original.reference||null,source_type:original.source_type||"manual",
+        source_id:original.source_id||original.id,reversal_of:original.id,is_legacy:false
+      });
+    } finally {
+      reversalLocks.delete(originalId);
+    }
   }
 
   function desiredAppCashMovements(sourceState) {
@@ -768,6 +775,9 @@
   }
   function carRemaining(car) { return isSoldCar(car) ? Math.max(0, amount(car.salePrice) - carPaid(car)) : 0; }
   function debtRemaining(debt) { return Math.max(0, amount(debt.totalAmount) - amount(debt.paidAmount)); }
+  function carPeriodDate(car) {
+    return isSoldCar(car) ? (car.saleDate || car.date || "") : (car.date || "");
+  }
   function isSoldCar(car) {
     const soldStatuses = ["كاش","متبقي","تقسيط","مباع"];
     return soldStatuses.includes(String(car && car.status || "").trim()) ||
@@ -1862,7 +1872,7 @@
   }
   function renderReports() {
     const allYears = Array.from(new Set(
-      [].concat(state.cars.map(x=>String((isSoldCar(x)?(x.saleDate||x.date):x.date)||"").slice(0,4)),
+      [].concat(state.cars.map(x=>String(carPeriodDate(x)).slice(0,4)),
         state.expenses.map(x=>String(x.date||"").slice(0,4)),
         state.capital.map(x=>String(x.date||"").slice(0,4)),
         state.debts.map(x=>String(x.dueDate||x.date||"").slice(0,4)))
@@ -1880,7 +1890,7 @@
       if (reportMonth !== "ALL" && !date.startsWith(reportYear + "-" + String(reportMonth).padStart(2,"0"))) return false;
       return true;
     };
-    const cars = state.cars.filter(c=>inPeriod(isSoldCar(c)?(c.saleDate||c.date):c.date));
+    const cars = state.cars.filter(c=>inPeriod(carPeriodDate(c)));
     const expenses = state.expenses.filter(e=>inPeriod(e.date));
     const debts = state.debts.filter(d=>inPeriod(d.date || d.dueDate));
     const capital = state.capital.filter(c=>inPeriod(c.date));
@@ -1900,7 +1910,7 @@
     if(reportYear!=="ALL"&&reportMonth!=="ALL"){
       const prevDate=new Date(Number(reportYear),Number(reportMonth)-2,1);
       const prevKey=prevDate.getFullYear()+"-"+String(prevDate.getMonth()+1).padStart(2,"0");
-      const prevCars=state.cars.filter(c=>String((isSoldCar(c)?(c.saleDate||c.date):c.date)||"").startsWith(prevKey));
+      const prevCars=state.cars.filter(c=>String(carPeriodDate(c)).startsWith(prevKey));
       const prevSold=prevCars.filter(isSoldCar);
       const prevRevenue=prevSold.reduce((sum,c)=>sum+amount(c.salePrice),0);
       const prevCost=prevSold.reduce((sum,c)=>sum+amount(c.purchasePrice)+amount(c.prepCost),0);
@@ -1911,7 +1921,7 @@
       comparisonLabel="مقارنة بالشهر السابق ("+prevKey+")";
     }else if(reportYear!=="ALL"&&reportMonth==="ALL"){
       const prevYear=String(Number(reportYear)-1);
-      const prevCars=state.cars.filter(c=>String((isSoldCar(c)?(c.saleDate||c.date):c.date)||"").startsWith(prevYear));
+      const prevCars=state.cars.filter(c=>String(carPeriodDate(c)).startsWith(prevYear));
       const prevSold=prevCars.filter(isSoldCar);
       const prevRevenue=prevSold.reduce((sum,c)=>sum+amount(c.salePrice),0);
       const prevCost=prevSold.reduce((sum,c)=>sum+amount(c.purchasePrice)+amount(c.prepCost),0);
