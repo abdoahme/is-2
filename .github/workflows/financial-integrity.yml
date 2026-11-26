@@ -1,0 +1,19 @@
+name: Financial integrity checks
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, "fix/**"]
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@1e60f620b9541d6e9c2b8eae2e6f4b0a3e6f8c6b
+        with:
+          node-version: 22
+      - run: node --check app.js
+      - run: node --check api/assistant.js
+      - run: node --test tests/financial-integrity.test.cjs
