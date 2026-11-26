@@ -202,7 +202,8 @@
         notificationRows=notificationRows.slice(0,40);
         renderNotificationPanel();
         if(currentView==="management")render();
-        toast(payload.new.title+": "+payload.new.body,payload.new.kind==="error"||payload.new.kind==="warning"?"error":"success");
+        // Do not turn incoming notifications into error toasts: toast() reports errors
+        // back to this same notification channel, which would create a recursive loop.
       }).subscribe();
     renderNotificationPanel();
   }
