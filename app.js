@@ -728,7 +728,7 @@
     const bounds = monthDateRange(key);
     const closure = state.closings.months[key];
     const locked = Boolean(closure);
-    const snapshot = locked ? closure.snapshot : buildPeriodSnapshot(bounds.start,bounds.end,monthLabel(key));
+    const snapshot = locked ? (closure.snapshot || buildPeriodSnapshot(bounds.start,bounds.end,monthLabel(key))) : buildPeriodSnapshot(bounds.start,bounds.end,monthLabel(key));
     const readiness = closingReadiness(bounds.start,bounds.end);
     const canClose = !locked && key < today().slice(0,7) && !state.closings.annual[closeYear] && readiness.blockers.length===0;
     const years = new Set([String(new Date().getFullYear())]);
@@ -766,7 +766,7 @@
     const months=activityMonthsForYear(year);
     const unclosed=months.filter(key=>!state.closings.months[key]);
     const readiness=closingReadiness(start,end);
-    const snapshot=locked?closure.snapshot:buildPeriodSnapshot(start,end,"السنة "+year);
+    const snapshot=locked?(closure.snapshot || buildPeriodSnapshot(start,end,"السنة "+year)):buildPeriodSnapshot(start,end,"السنة "+year);
     const notEnded=Number(year)>=new Date().getFullYear();
     const blockers=readiness.blockers.slice();
     if(unclosed.length) blockers.unshift("الأشهر التي تحتوي على حركات ولم تُقفل: "+unclosed.map(monthLabel).join("، "));
@@ -1007,6 +1007,8 @@
       '<section class="panel section-gap"><h3>ملخص رأس المال</h3><div class="summary-list"><div class="summary-line"><span>إجمالي الإيداعات</span><strong class="positive">' + money(metrics().capitalIn) + '</strong></div><div class="summary-line"><span>إجمالي المسحوبات</span><strong class="negative">' + money(metrics().capitalOut) + '</strong></div><div class="summary-line"><span>أرباح من أشخاص</span><strong class="positive">' + money(metrics().profitFromPeople) + '</strong></div><div class="summary-line"><span>خسائر لأشخاص</span><strong class="negative">' + money(metrics().lossToPeople) + '</strong></div><div class="summary-line"><span>صافي الحركة بعد الأرباح والخسائر</span><strong class="' + (metrics().capitalNet >= 0 ? 'positive' : 'negative') + '">' + money(metrics().capitalNet) + '</strong></div></div></section>' + renderPartnerBalances();
     else if (currentView === "partners") host.innerHTML = renderPartners();
     else if (currentView === "reports") host.innerHTML = renderReports();
+    else if (currentView === "monthlyClosing") host.innerHTML = renderMonthlyClosing();
+    else if (currentView === "yearlyClosing") host.innerHTML = renderYearlyClosing();
     else if (currentView === "receivables") host.innerHTML = renderReceivables();
     else if (currentView === "requests") host.innerHTML = renderRequests();
     else if (currentView === "settings") host.innerHTML = renderSettings();
@@ -1119,6 +1121,13 @@
       const raw = form.get(field.key);
       data[field.key] = field.type==="number" ? num(raw) : String(raw || "").trim();
     });
+    const originalRecord = editingId ? (state[collection] || []).find(item=>String(item.id)===String(editingId)) : null;
+    const originalDate = recordDate(originalRecord);
+    const proposedDate = recordDate(data);
+    if (isPeriodLocked(originalDate) || isPeriodLocked(proposedDate)) {
+      toast("هذه الفترة مقفلة. لا يمكن إضافة أو تعديل سجلات فيها قبل إعادة فتح التقفيل بسبب موثّق.", "error");
+      return;
+    }
     const negativeField = schema.fields.find(field=>field.type==="number" && data[field.key] < 0);
     if (negativeField) {
       toast("لا يمكن إدخال مبلغ سالب في حقل " + negativeField.label + ".", "error");
@@ -1209,6 +1218,10 @@
     if (saving) { toast("هناك عملية حفظ جارية؛ انتظر حتى تنتهي.", "error"); return; }
     const item = (state[collection] || []).find(x=>String(x.id)===String(id));
     if (!item) return;
+    if (isPeriodLocked(recordDate(item))) {
+      toast("لا يمكن حذف سجل داخل فترة مقفلة. أعد فتح الفترة بسبب موثّق أولاً.", "error");
+      return;
+    }
     if (collection==="capital" && isLinkedCapitalEntry(item)) {
       toast("هذا القيد مرتبط بمساهمة سيارة أو سحب شريك؛ لا تحذفه منفردًا حتى لا تختلف الدفاتر.", "error");
       return;
@@ -1251,6 +1264,10 @@
   async function recordRequest(id) {
     const request = requests.find(r=>String(r.id)===String(id));
     if (!request || request.status!=="pending") return;
+    if (isPeriodLocked(request.expense_date)) {
+      toast("تاريخ هذا الطلب يقع داخل فترة مقفلة؛ أعد فتحها قبل اعتماد الطلب.", "error");
+      return;
+    }
     const previous = clone(state);
     if (!state.expenses.some(e=>String(e.requestId||"")===String(request.id))) {
       state.expenses.unshift({
@@ -1383,6 +1400,9 @@
   $("mainContent").addEventListener("change",(event)=>{
     if(event.target.id==="reportYear") { reportYear=event.target.value; if(reportYear==="ALL") reportMonth="ALL"; render(); }
     if(event.target.id==="reportMonth" && reportYear!=="ALL") { reportMonth=event.target.value; render(); }
+    if(event.target.id==="closeMonthSelect") { closeMonth=Number(event.target.value); render(); }
+    if(event.target.id==="closeYearSelect") { closeYear=String(event.target.value); render(); }
+    if(event.target.id==="closeAnnualYearSelect") { closeAnnualYear=String(event.target.value); render(); }
   });
   $("mainContent").addEventListener("click",async(event)=>{
     const btn=event.target.closest("[data-action]");
@@ -1399,6 +1419,10 @@
     else if(action==="delete-request")await deleteRequest(btn.dataset.id);
     else if(action==="refresh-requests"){await loadRequests();render();toast("تم تحديث قائمة الطلبات.","success");}
     else if(action==="backup-json")backupJson();
+    else if(action==="close-month")await closeMonthlyPeriod();
+    else if(action==="reopen-month")await reopenMonthlyPeriod();
+    else if(action==="close-year")await closeAnnualPeriod();
+    else if(action==="reopen-year")await reopenAnnualPeriod();
     else if(action==="print")window.print();
   });
   $("expenseRequestForm").addEventListener("submit",submitEmployeeExpense);
