@@ -475,7 +475,7 @@
       ["ذمم",state.debts || []],
       ["رأس المال",state.capital || []]
     ];
-    return groups.reduce((all,group)=>all.concat(group[1].filter(item=>!recordDate(item)).map(item=>group[0])),[]);
+    return groups.reduce((all,group)=>all.concat(group[1].filter(item=>!/^\\d{4}-\\d{2}-\\d{2}$/.test(recordDate(item))).map(item=>group[0])),[]);
   }
 
   function pendingRequestsForPeriod(startDate,endDate) {
@@ -760,11 +760,11 @@
       '<section class="panel closing-period-picker"><div><strong>اختر الفترة</strong><p class="panel-note">يُقفل الشهر بعد انتهائه فقط، ويمكن مراجعة أي شهر سابق.</p></div><div class="closing-selects"><label>الشهر<select id="closeMonthSelect" class="search-input">'+monthOptions+'</select></label><label>السنة<select id="closeYearSelect" class="search-input">'+yearOptions+'</select></label></div></section>'+
       '<div class="closing-status-panel"><div><span class="eyebrow">حالة الفترة</span><h3>'+esc(monthLabel(key))+'</h3><p>'+(locked?"تم التقفيل في "+esc(closure.closedAt||"سابقاً"):"الفترة مفتوحة للمراجعة")+'</p></div>'+badge(locked?"مقفل":(key>=today().slice(0,7)?"لم ينته الشهر":"مفتوح"),locked?"ok":"warn")+'</div>'+
       '<div class="kpi-grid">'+
-      kpi("إيرادات البيع",money(snapshot.sales),snapshot.counts.soldCars+" سيارة مباعة","blue")+
-      kpi("مجمل الربح",money(snapshot.grossProfit),"بعد تكلفة السيارات المباعة",snapshot.grossProfit>=0?"green":"red")+
-      kpi("مصروفات التشغيل",money(snapshot.operatingExpenses),"مصروفات الفترة","red")+
-      kpi("صافي النتيجة",money(snapshot.netResult),"بعد الأرباح والخسائر الإضافية",snapshot.netResult>=0?"green":"red")+
-      kpi("المتبقي المستحق",money(snapshot.totalReceivables),"سيارات وذمم الفترة","gold")+
+      kpi("إيرادات البيع",locked&&!hasSavedSnapshot?"غير متاح":money(snapshot.sales),snapshot.counts.soldCars+" سيارة مباعة","blue")+
+      kpi("مجمل الربح",locked&&!hasSavedSnapshot?"غير متاح":money(snapshot.grossProfit),"بعد تكلفة السيارات المباعة",snapshot.grossProfit>=0?"green":"red")+
+      kpi("مصروفات التشغيل",locked&&!hasSavedSnapshot?"غير متاح":money(snapshot.operatingExpenses),"مصروفات الفترة","red")+
+      kpi("صافي النتيجة",locked&&!hasSavedSnapshot?"غير متاح":money(snapshot.netResult),"بعد الأرباح والخسائر الإضافية",snapshot.netResult>=0?"green":"red")+
+      kpi("المتبقي المستحق",locked&&!hasSavedSnapshot?"غير متاح":money(snapshot.totalReceivables),"سيارات وذمم الفترة","gold")+
       '</div>'+
       '<section class="panel section-gap"><div class="section-title-row"><div><h3>كشف المراجعة المالية</h3><p class="panel-note">راجع كل المبالغ قبل اعتماد الإغلاق.</p></div>'+badge(locked?(hasSavedSnapshot?"لقطة ثابتة":"تقفيل قديم بلا لقطة"):"معاينة قبل التقفيل",locked?"ok":"gold")+'</div>'+renderClosingSnapshot(locked&&!hasSavedSnapshot?null:snapshot)+'</section>'+
       '<section class="panel section-gap"><div class="section-title-row"><div><h3>قائمة التحقق قبل الإقفال</h3><p class="panel-note">تُفحص الطلبات والسجلات التي لا تحمل تاريخًا.</p></div>'+action+'</div>'+blockers+'</section>'+
@@ -802,11 +802,11 @@
       '<section class="panel closing-period-picker"><div><strong>السنة المالية</strong><p class="panel-note">يشترط تقفيل كل شهر به حركة مالية قبل اعتماد السنة.</p></div><label>السنة<select id="closeAnnualYearSelect" class="search-input">'+yearOptions+'</select></label></section>'+
       '<div class="closing-status-panel"><div><span class="eyebrow">حالة السنة</span><h3>'+esc(year)+'</h3><p>'+(locked?"تم التقفيل في "+esc(closure.closedAt||"سابقاً"):"السنة مفتوحة للمراجعة")+'</p></div>'+badge(locked?"مقفل":(notEnded?"لم تنته السنة":"جاهز للمراجعة"),locked?"ok":"warn")+'</div>'+
       '<div class="kpi-grid">'+
-      kpi("إيرادات السنة",money(snapshot.sales),snapshot.counts.soldCars+" سيارة مباعة","blue")+
-      kpi("مجمل ربح السيارات",money(snapshot.grossProfit),"المبيعات ناقص التكلفة",snapshot.grossProfit>=0?"green":"red")+
-      kpi("مصروفات السنة",money(snapshot.operatingExpenses),"كل مصروفات التشغيل","red")+
-      kpi("صافي نتيجة السنة",money(snapshot.netResult),"النتيجة بعد الربح والخسارة الإضافية",snapshot.netResult>=0?"green":"red")+
-      kpi("إجمالي المستحقات",money(snapshot.totalReceivables),"مبالغ باقية وذمم","gold")+
+      kpi("إيرادات السنة",locked&&!hasSavedSnapshot?"غير متاح":money(snapshot.sales),snapshot.counts.soldCars+" سيارة مباعة","blue")+
+      kpi("مجمل ربح السيارات",locked&&!hasSavedSnapshot?"غير متاح":money(snapshot.grossProfit),"المبيعات ناقص التكلفة",snapshot.grossProfit>=0?"green":"red")+
+      kpi("مصروفات السنة",locked&&!hasSavedSnapshot?"غير متاح":money(snapshot.operatingExpenses),"كل مصروفات التشغيل","red")+
+      kpi("صافي نتيجة السنة",locked&&!hasSavedSnapshot?"غير متاح":money(snapshot.netResult),"النتيجة بعد الربح والخسارة الإضافية",snapshot.netResult>=0?"green":"red")+
+      kpi("إجمالي المستحقات",locked&&!hasSavedSnapshot?"غير متاح":money(snapshot.totalReceivables),"مبالغ باقية وذمم","gold")+
       '</div>'+
       '<div class="two-col section-gap"><section class="panel"><h3>حالة الأشهر ذات الحركة</h3><div class="summary-list">'+monthlyRows+'</div></section><section class="panel"><h3>شروط اعتماد السنة</h3>'+ (blockers.length?'<div class="closing-alert"><ul>'+blockers.map(x=>'<li>'+esc(x)+'</li>').join("")+'</ul></div>':'<div class="closing-ok">كل الأشهر ذات الحركات مقفلة، ولا توجد طلبات معلقة أو سجلات بلا تاريخ.</div>')+'<div class="section-gap">'+action+'</div></section></div>'+
       '<section class="panel section-gap"><h3>القائمة السنوية التفصيلية</h3>'+renderClosingSnapshot(locked&&!hasSavedSnapshot?null:snapshot)+'</section>'+
