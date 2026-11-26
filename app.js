@@ -749,7 +749,7 @@
     if (financialLedgerLoaded && car && car.id) {
       return Math.max(0,financialTransactions.filter(tx=>
         String(tx.car_id||"")===String(car.id) &&
-        (tx.category==="car_collection" || (tx.category==="reversal" && ["car","car_collection","car_cash"].includes(tx.source_type)))
+        (tx.category==="car_collection" || (tx.category==="reversal" && ["car","car_collection","car_cash","car_sale_payment"].includes(tx.source_type)))
       ).reduce((sum,tx)=>sum+(tx.direction==="inflow"?amount(tx.amount):-amount(tx.amount)),0));
     }
     if (car.paidAmount === undefined || car.paidAmount === null || car.paidAmount === "") {
@@ -988,7 +988,7 @@
     const allIn=flowSum(periodTransactions,"inflow");
     const allOut=flowSum(periodTransactions,"outflow");
     const collectionMovements=periodTransactions.filter(tx=>
-      tx.category==="car_collection" || (tx.category==="reversal"&&["car","car_collection","car_cash"].includes(tx.source_type))
+      tx.category==="car_collection" || (tx.category==="reversal"&&["car","car_collection","car_cash","car_sale_payment"].includes(tx.source_type))
     );
     const purchaseMovements=periodTransactions.filter(tx=>
       tx.category==="car_purchase" || (tx.category==="reversal"&&tx.source_type==="car_purchase")
