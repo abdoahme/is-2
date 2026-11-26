@@ -64,6 +64,7 @@
         {key:"prepCost",label:"مصاريف التجهيز",type:"number"},
         {key:"salePrice",label:"إجمالي سعر البيع",type:"number"},
         {key:"status",label:"حالة السيارة",type:"select",options:["قيد البيع","كاش","متبقي","تقسيط","مباع"]},
+        {key:"nextDueDate",label:"موعد القسط القادم (اختياري)",type:"date"},
         {key:"customer",label:"اسم العميل"},
         {key:"phone",label:"رقم الهاتف",type:"tel"},
         {key:"notes",label:"ملاحظات",type:"textarea",full:true}
@@ -522,10 +523,14 @@
 
   function customerGroups() {
     const map=new Map();
+    const getGroup=name=>{
+      const key=String(name||"").trim();
+      if(!key)return null;
+      if(!map.has(key))map.set(key,{name:key,cars:[],debts:[],sales:0,paid:0,remaining:0,debtReceivable:0,debtPayable:0});
+      return map.get(key);
+    };
     (state.cars||[]).filter(car=>car.customer).forEach(car=>{
-      const name=String(car.customer).trim();
-      if(!map.has(name)) map.set(name,{name,cars:[],sales:0,paid:0,remaining:0});
-      const group=map.get(name);
+      const group=getGroup(car.customer);
       group.cars.push(car);
       if(isSoldCar(car)){
         group.sales+=amount(car.salePrice);
@@ -533,7 +538,14 @@
         group.remaining+=carRemaining(car);
       }
     });
-    return Array.from(map.values()).sort((a,b)=>b.remaining-a.remaining);
+    (state.debts||[]).forEach(debt=>{
+      const group=getGroup(debt.partyName);
+      if(!group)return;
+      group.debts.push(debt);
+      if(String(debt.nature||"").includes("لنا"))group.debtReceivable+=debtRemaining(debt);
+      if(String(debt.nature||"").includes("علينا"))group.debtPayable+=debtRemaining(debt);
+    });
+    return Array.from(map.values()).sort((a,b)=>(b.remaining+b.debtReceivable)-(a.remaining+a.debtReceivable));
   }
 
   function carProfitDetails(car) {
@@ -543,7 +555,7 @@
     const inferred=cost>0&&amount(car.partnerContribution)>0?Math.min(100,amount(car.partnerContribution)/cost*100):0;
     const sharePercent=Number.isFinite(explicit)&&explicit>0?Math.min(100,explicit):inferred;
     const partnerProfit=amount(car.partnerContribution)>0?profit*sharePercent/100:0;
-    return {cost,profit,sharePercent,partnerProfit,showPartner:amount(car.partnerContribution)>0,inferred:!(Number.isFinite(explicit)&&explicit>0)};
+    return {cost,profit,sharePercent,partnerProfit,showroomProfit:profit-partnerProfit,showPartner:amount(car.partnerContribution)>0,inferred:!(Number.isFinite(explicit)&&explicit>0)};
   }
 
   async function loadRequests() {
@@ -1172,11 +1184,12 @@
     const stockCards=stock.slice().sort((a,b)=>String(a.date||"").localeCompare(String(b.date||""))).map(car=>{
       const cost=amount(car.purchasePrice)+amount(car.prepCost);
       const days=car.date?Math.max(0,Math.floor((new Date(today()+"T00:00:00")-new Date(car.date+"T00:00:00"))/86400000)):null;
-      return '<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">'+esc(car.model||"سيارة")+'</div><div class="data-card-sub">'+esc(car.chassis||"بدون شاسيه")+' · '+dateText(car.date)+'</div></div>'+badge(car.status||"قيد البيع","gold")+'</div><div class="data-card-grid"><div class="data-cell"><span>تكلفة الشراء والتجهيز</span><strong>'+money(cost)+'</strong></div><div class="data-cell"><span>مدة بقاء السيارة</span><strong>'+(days===null?"غير محدد":days+" يوم")+'</strong></div><div class="data-cell"><span>الشريك</span><strong>'+esc(car.partnerName||"—")+'</strong></div><div class="data-cell"><span>مساهمة الشريك</span><strong>'+money(car.partnerContribution)+'</strong></div></div></article>';
+      const paidToSupplier=carAcquisitionPaid(car.id);
+      return '<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">'+esc(car.model||"سيارة")+'</div><div class="data-card-sub">'+esc(car.chassis||"بدون شاسيه")+' · '+dateText(car.date)+'</div></div>'+badge(car.status||"قيد البيع","gold")+'</div><div class="data-card-grid"><div class="data-cell"><span>تكلفة الشراء والتجهيز</span><strong>'+money(cost)+'</strong></div><div class="data-cell"><span>المسدد للمورد</span><strong>'+money(paidToSupplier)+'</strong></div><div class="data-cell"><span>مدة بقاء السيارة</span><strong>'+(days===null?"غير محدد":days+" يوم")+'</strong></div><div class="data-cell"><span>الشريك</span><strong>'+esc(car.partnerName||"—")+'</strong></div><div class="data-cell"><span>مساهمة الشريك</span><strong>'+money(car.partnerContribution)+'</strong></div></div></article>';
     }).join("");
     const profitCards=profits.map(row=>{
       const car=row.car,d=row.details;
-      return '<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">'+esc(car.model||"سيارة")+'</div><div class="data-card-sub">'+esc(car.customer||"عميل غير محدد")+' · '+dateText(car.date)+'</div></div>'+badge(d.profit>=0?"ربح":"خسارة",d.profit>=0?"ok":"warn")+'</div><div class="data-card-grid"><div class="data-cell"><span>سعر البيع</span><strong>'+money(car.salePrice)+'</strong></div><div class="data-cell"><span>تكلفة الشراء والتجهيز</span><strong>'+money(d.cost)+'</strong></div><div class="data-cell"><span>مجمل ربح السيارة</span><strong class="'+(d.profit>=0?"positive":"negative")+'">'+money(d.profit)+'</strong></div><div class="data-cell"><span>التحصيل / سعر البيع</span><strong>'+money(carPaid(car))+' / '+money(car.salePrice)+'</strong></div></div>'+(d.showPartner?'<div class="summary-line"><span>حصة '+esc(car.partnerName||"الشريك")+' '+(d.inferred?"التقديرية حسب التمويل":"حسب النسبة المتفق عليها")+' ('+d.sharePercent.toFixed(2)+'%)</span><strong>'+money(d.partnerProfit)+'</strong></div>':"")+'</article>';
+      return '<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">'+esc(car.model||"سيارة")+'</div><div class="data-card-sub">'+esc(car.customer||"عميل غير محدد")+' · '+dateText(car.date)+'</div></div>'+badge(d.profit>=0?"ربح":"خسارة",d.profit>=0?"ok":"warn")+'</div><div class="data-card-grid"><div class="data-cell"><span>سعر البيع</span><strong>'+money(car.salePrice)+'</strong></div><div class="data-cell"><span>تكلفة الشراء والتجهيز</span><strong>'+money(d.cost)+'</strong></div><div class="data-cell"><span>مجمل ربح السيارة</span><strong class="'+(d.profit>=0?"positive":"negative")+'">'+money(d.profit)+'</strong></div><div class="data-cell"><span>التحصيل / سعر البيع</span><strong>'+money(carPaid(car))+' / '+money(car.salePrice)+'</strong></div></div>'+(d.showPartner?'<div class="summary-line"><span>حصة '+esc(car.partnerName||"الشريك")+' '+(d.inferred?"التقديرية حسب التمويل":"حسب النسبة المتفق عليها")+' ('+d.sharePercent.toFixed(2)+'%)</span><strong>'+money(d.partnerProfit)+'</strong></div><div class="summary-line"><span>حصة المعرض من مجمل الربح</span><strong>'+money(d.showroomProfit)+'</strong></div>':"")+'</article>';
     }).join("");
     return heading("مخزون السيارات وربحية كل سيارة","حالة السيارات المتاحة ومدة بقائها وربحية السيارات المباعة وتوزيع حصة الشريك.",'<button class="btn btn-outline btn-small" data-action="print">طباعة</button>')+
       '<div class="kpi-grid">'+kpi("سيارات في المخزون",stock.length,"لم تسجل كمباعة","gold")+kpi("تكلفة المخزون",money(totalStock),"شراء وتجهيز","blue")+kpi("سيارات مباعة",sold.length,"بحالة بيع مسجلة","green")+kpi("مجمل ربح السيارات",money(totalGross),"قبل المصروفات التشغيلية",totalGross>=0?"green":"red")+'</div>'+
@@ -1665,6 +1678,16 @@
       if(data.category==="تحصيل من عميل" && car && (amount(car.salePrice)<=0 || carPaid(car)+amountValue>amount(car.salePrice)+0.0001)){
         toast("التحصيل يتجاوز المتبقي من سعر بيع السيارة أو أن السيارة لم يُحدد لها سعر بيع.", "error");
         return;
+      }
+      if(data.category==="سداد ثمن شراء سيارة" && car){
+        const reversed=new Set(financialTransactions.filter(tx=>tx.reversal_of).map(tx=>String(tx.reversal_of)));
+        const already=financialTransactions.filter(tx=>String(tx.car_id||"")===String(car.id)&&tx.category==="car_purchase"&&!reversed.has(String(tx.id))).reduce((sum,tx)=>sum+amount(tx.amount),0);
+        if(already+amountValue>amount(car.purchasePrice)+0.0001){toast("مبلغ السداد يتجاوز تكلفة شراء السيارة المسجلة.", "error");return;}
+      }
+      if(data.category==="سداد تجهيز سيارة" && car){
+        const reversed=new Set(financialTransactions.filter(tx=>tx.reversal_of).map(tx=>String(tx.reversal_of)));
+        const already=financialTransactions.filter(tx=>String(tx.car_id||"")===String(car.id)&&tx.category==="car_prep"&&!reversed.has(String(tx.id))).reduce((sum,tx)=>sum+amount(tx.amount),0);
+        if(already+amountValue>amount(car.prepCost)+0.0001){toast("مبلغ سداد التجهيز يتجاوز تكلفة التجهيز المسجلة.", "error");return;}
       }
       try{
         const result=await insertFinancialTransaction({
