@@ -816,19 +816,50 @@
     const capitalIn = rows.capital.reduce((sum,entry)=>sum+amount(entry.deposited),0);
     const capitalOut = rows.capital.reduce((sum,entry)=>sum+amount(entry.withdrawn),0);
     const carPaidToDate = rows.cars.reduce((sum,car)=>sum+carPaid(car),0);
+    const periodTransactions=(financialTransactions||[]).filter(tx=>tx.transaction_date>=startDate&&tx.transaction_date<=endDate);
+    const flowSum=(list,direction)=>list.filter(tx=>tx.direction===direction).reduce((sum,tx)=>sum+amount(tx.amount),0);
+    const cashIn=flowSum(periodTransactions.filter(tx=>tx.payment_method==="cash"),"inflow");
+    const cashOut=flowSum(periodTransactions.filter(tx=>tx.payment_method==="cash"),"outflow");
+    const bankIn=flowSum(periodTransactions.filter(tx=>tx.payment_method==="bank_transfer"),"inflow");
+    const bankOut=flowSum(periodTransactions.filter(tx=>tx.payment_method==="bank_transfer"),"outflow");
+    const allIn=flowSum(periodTransactions,"inflow");
+    const allOut=flowSum(periodTransactions,"outflow");
+    const collectionMovements=periodTransactions.filter(tx=>
+      tx.category==="car_collection" || (tx.category==="reversal"&&["car","car_collection","car_cash"].includes(tx.source_type))
+    );
+    const purchaseMovements=periodTransactions.filter(tx=>
+      tx.category==="car_purchase" || (tx.category==="reversal"&&tx.source_type==="car_purchase")
+    );
+    const prepMovements=periodTransactions.filter(tx=>
+      tx.category==="car_prep" || (tx.category==="reversal"&&tx.source_type==="car_prep")
+    );
+    const netOf=(list)=>list.reduce((sum,tx)=>sum+(tx.direction==="inflow"?amount(tx.amount):-amount(tx.amount)),0);
+    const cashDates=Array.from(new Set(periodTransactions.filter(tx=>tx.payment_method==="cash").map(tx=>tx.transaction_date)));
+    const reconciledDates=new Set((cashReconciliations||[]).filter(item=>item.reconciliation_date>=startDate&&item.reconciliation_date<=endDate).map(item=>item.reconciliation_date));
+    const unreconciledCashDates=cashDates.filter(date=>!reconciledDates.has(date)).sort();
+    const reconciliations=(cashReconciliations||[]).filter(item=>item.reconciliation_date>=startDate&&item.reconciliation_date<=endDate);
+    const cashDifferenceTotal=reconciliations.reduce((sum,item)=>sum+amount(item.cash_difference),0);
     return {
       label,startDate,endDate,
       calculatedAt:new Date().toISOString(),
       counts:{
         cars:rows.cars.length,soldCars:sold.length,inventoryCars:inventory.length,
         expenses:rows.expenses.length,debts:rows.debts.length,capitalEntries:rows.capital.length,
-        partnerMovements:rows.partnerMovements.length
+        partnerMovements:rows.partnerMovements.length,transactions:periodTransactions.length,
+        legacyMovements:periodTransactions.filter(tx=>tx.is_legacy).length,
+        cashReconciliations:reconciliations.length,unreconciledCashDays:unreconciledCashDates.length
       },
       sales,soldCost,allPurchaseCost,inventoryCost:allPurchaseCost-soldCost,
       grossProfit,operatingExpenses,profitFromPeople,lossToPeople,netResult,
       carReceivables,receivableDebts,payableDebts,totalReceivables:carReceivables+receivableDebts,
       carPaidToDate,capitalIn,capitalOut,capitalNet:capitalIn-capitalOut+profitFromPeople-lossToPeople,
-      partnerBalances:(partnerBalances() || []).map(item=>({
+      cashIn,cashOut,cashNet:cashIn-cashOut,bankIn,bankOut,bankNet:bankIn-bankOut,
+      totalIn:allIn,totalOut:allOut,totalCashNet:allIn-allOut,
+      carCollectionsInPeriod:netOf(collectionMovements),
+      carPurchasePaymentsInPeriod:netOf(purchaseMovements),
+      carPrepPaymentsInPeriod:netOf(prepMovements),
+      cashDifferenceTotal,unreconciledCashDates,
+      partnerBalances:(partnerBalances()||[]).map(item=>({
         partner:item.partner,contributed:item.contributed,withdrawn:item.withdrawn,balance:item.balance
       })),
       sourceIds:{
@@ -836,7 +867,8 @@
         expenses:rows.expenses.map(item=>String(item.id)),
         debts:rows.debts.map(item=>String(item.id)),
         capital:rows.capital.map(item=>String(item.id)),
-        partnerMovements:rows.partnerMovements.map(item=>String(item.id))
+        partnerMovements:rows.partnerMovements.map(item=>String(item.id)),
+        financialTransactions:periodTransactions.map(item=>String(item.id))
       }
     };
   }
