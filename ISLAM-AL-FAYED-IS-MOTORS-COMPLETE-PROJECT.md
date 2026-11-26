@@ -2497,12 +2497,15 @@ button:disabled{opacity:.45;cursor:not-allowed;filter:grayscale(.15);transform:n
     }
     else if (currentView==="monthlyClosing") {
       const key=closeYear+"-"+String(closeMonth).padStart(2,"0"),bounds=monthDateRange(key),closure=state.closings.months[key];
-      const snap=closure&&closure.snapshot?closure.snapshot:buildPeriodSnapshot(bounds.start,bounds.end,monthLabel(key));
+      if (closure && !closure.snapshot) { toast("هذا التقفيل القديم لا يحتوي على لقطة محفوظة يمكن تصديرها كمرجع تاريخي.","error"); return; }
+      const snap=closure?closure.snapshot:buildPeriodSnapshot(bounds.start,bounds.end,monthLabel(key));
       rows=[["إيرادات البيع",snap.sales],["تكلفة السيارات المباعة",snap.soldCost],["مجمل الربح",snap.grossProfit],["مصروفات التشغيل",snap.operatingExpenses],["أرباح من أشخاص",snap.profitFromPeople],["خسائر لأشخاص",snap.lossToPeople],["صافي النتيجة",snap.netResult],["المتبقي المستحق",snap.totalReceivables]].map(x=>({البند:x[0],المبلغ:x[1]}));
       filename="تقفيل-"+key+".csv";
     }
     else if (currentView==="yearlyClosing") {
-      const year=String(closeAnnualYear),closure=state.closings.annual[year],snap=closure&&closure.snapshot?closure.snapshot:buildPeriodSnapshot(year+"-01-01",year+"-12-31","السنة "+year);
+      const year=String(closeAnnualYear),closure=state.closings.annual[year];
+      if (closure && !closure.snapshot) { toast("هذا التقفيل السنوي القديم لا يحتوي على لقطة محفوظة يمكن تصديرها كمرجع تاريخي.","error"); return; }
+      const snap=closure?closure.snapshot:buildPeriodSnapshot(year+"-01-01",year+"-12-31","السنة "+year);
       rows=[["إيرادات السنة",snap.sales],["تكلفة السيارات المباعة",snap.soldCost],["مجمل الربح",snap.grossProfit],["مصروفات التشغيل",snap.operatingExpenses],["أرباح من أشخاص",snap.profitFromPeople],["خسائر لأشخاص",snap.lossToPeople],["صافي النتيجة السنوية",snap.netResult],["المتبقي المستحق",snap.totalReceivables]].map(x=>({البند:x[0],المبلغ:x[1]}));
       filename="تقفيل-سنوي-"+year+".csv";
     } else { toast("افتح صفحة بيانات أولاً لتصديرها.","error"); return; }
