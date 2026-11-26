@@ -1164,12 +1164,13 @@
     if(opening<0||counted<0){toast("القيم النقدية لا يمكن أن تكون سالبة.","error");return;}
     const totals=cashTotalsForDate(date);
     const expected=opening+totals.cashIn-totals.cashOut;
+    const beforeReconciliation=cashReconciliations.find(r=>r.reconciliation_date===date)||null;
     const payload={user_id:session.user.id,reconciliation_date:date,opening_cash:opening,cash_in:totals.cashIn,cash_out:totals.cashOut,expected_cash:expected,counted_cash:counted,bank_in:totals.bankIn,bank_out:totals.bankOut,notes:$("reconNotes").value.trim(),updated_by:session.user.id};
     const result=await db.from("cash_reconciliations").upsert(payload,{onConflict:"user_id,reconciliation_date"}).select("*").single();
     if(result.error){toast("تعذر حفظ المطابقة: "+result.error.message,"error");return;}
     const index=cashReconciliations.findIndex(r=>r.reconciliation_date===date);
     if(index>=0)cashReconciliations[index]=result.data;else cashReconciliations.unshift(result.data);
-    await writeAuditEvent({event_type:"update",entity_type:"cash_reconciliations",entity_id:result.data.id,description:"مطابقة الخزينة ليوم "+date,after_data:{opening_cash:opening,cash_in:totals.cashIn,cash_out:totals.cashOut,expected_cash:expected,counted_cash:counted,cash_difference:counted-expected}});
+    await writeAuditEvent({event_type:"update",entity_type:"cash_reconciliations",entity_id:result.data.id,description:"مطابقة الخزينة ليوم "+date,before_data:beforeReconciliation,after_data:result.data});
     render();
     const difference=counted-expected;
     toast(Math.abs(difference)<0.005?"تمت مطابقة الخزينة دون فرق.":"تم حفظ المطابقة ويوجد فرق "+money(difference)+".",Math.abs(difference)<0.005?"success":"error");
@@ -1301,8 +1302,18 @@
       state=normaliseState(target);
       const saved=await saveState(true);
       if(!saved)throw new Error("تعذر حفظ بيانات النسخة المستعادة.");
+      if(Array.isArray(snapshot.cashReconciliations)){
+        for(const reconciliation of snapshot.cashReconciliations){
+          const restored=Object.assign({},reconciliation,{user_id:session.user.id,updated_by:session.user.id});
+          delete restored.id;
+          const upserted=await db.from("cash_reconciliations").upsert(restored,{onConflict:"user_id,reconciliation_date"}).select("*").single();
+          if(upserted.error)throw upserted.error;
+          const idx=cashReconciliations.findIndex(item=>item.reconciliation_date===upserted.data.reconciliation_date);
+          if(idx>=0)cashReconciliations[idx]=upserted.data;else cashReconciliations.push(upserted.data);
+        }
+      }
       await syncCashbookWithAppState(state);
-      await writeAuditEvent({event_type:"restore",entity_type:"app_backups",entity_id:id,description:"استعادة بيانات التطبيق من نسخة محفوظة؛ دفتر الحركات ظل append-only"});
+      await writeAuditEvent({event_type:"restore",entity_type:"app_backups",entity_id:id,description:"استعادة بيانات التطبيق ومطابقات الخزينة من نسخة محفوظة؛ دفتر الحركات المالي ظل append-only"});
       render();toast("تمت استعادة بيانات التطبيق مع الاحتفاظ بسجل الحركات المالية.","success");
     }catch(error){
       state=before;
