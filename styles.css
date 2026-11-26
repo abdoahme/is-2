@@ -887,3 +887,16 @@ button:disabled{opacity:.45;cursor:not-allowed;filter:grayscale(.15);transform:n
 .notification-item p{font-size:12px;line-height:1.7;margin:6px 0}
 .notification-empty{padding:22px;text-align:center}
 @media(max-width:640px){.notifications-panel{position:fixed;top:72px;left:10px;right:10px;width:auto}.notification-panel-actions{align-items:stretch}}
+
+.management-notification-list{display:grid;gap:9px}
+.management-notification{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 14px;border:1px solid var(--line);border-radius:13px;background:var(--panel2)}
+.management-notification.is-unread{border-inline-start:3px solid var(--gold)}
+.management-notification-main{min-width:0}
+.management-notification-title{display:flex;align-items:center;gap:8px;font-weight:700;font-size:13px}
+.management-notification-main p{margin:5px 0;font-size:12px;line-height:1.7;color:var(--text)}
+.management-notification-main small{font-size:10px;color:var(--muted)}
+.management-notification-dot{width:8px;height:8px;flex:0 0 8px;border-radius:50%;background:var(--blue)}
+.management-notification-dot.error,.management-notification-dot.warning,.management-notification-dot.finance{background:var(--red)}
+.management-notification-dot.system{background:var(--gold)}
+.management-notification-empty{padding:16px 0;text-align:center}
+@media(max-width:640px){.management-notification{align-items:flex-start;flex-direction:column}.management-notification .btn{align-self:flex-start}}

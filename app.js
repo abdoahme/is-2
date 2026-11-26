@@ -201,6 +201,7 @@
         notificationRows.unshift(payload.new);
         notificationRows=notificationRows.slice(0,40);
         renderNotificationPanel();
+        if(currentView==="management")render();
         toast(payload.new.title+": "+payload.new.body,payload.new.kind==="error"||payload.new.kind==="warning"?"error":"success");
       }).subscribe();
     renderNotificationPanel();
@@ -236,6 +237,7 @@
       .eq("id",id).eq("user_id",session.user.id);
     if(result.error){toast("تعذر تحديث الإشعار: "+result.error.message,"error");return;}
     await loadNotificationRows();
+    if(currentView==="management")render();
   }
 
   let financialLedgerLoaded = false;
@@ -1541,6 +1543,22 @@
     return '<section class="panel section-gap management-recommendations"><div class="section-title-row"><div><h3>اقتراحات الإدارة</h3><p class="panel-note">توصيات تلقائية مبنية على البيانات المسجلة، وليست قرارات تنفذ دون مراجعتك.</p></div>'+badge(items.length+" توصية","gold")+'</div><div class="recommendation-list">'+cards+'</div>'+(compact&&items.length>4?'<div class="page-actions section-gap"><button class="btn btn-outline btn-small" data-action="go-view" data-view="management">عرض كل الاقتراحات</button></div>':"")+'</section>';
   }
 
+  function renderManagementNotifications() {
+    const unread=notificationRows.filter(row=>!row.read_at).length;
+    const cards=notificationRows.slice(0,8).map(row=>
+      '<article class="management-notification '+(row.read_at?"is-read":"is-unread")+'">'+
+        '<div class="management-notification-main"><div class="management-notification-title">'+
+          '<span class="management-notification-dot '+esc(row.kind||"info")+'"></span>'+esc(row.title)+
+          '</div><p>'+esc(row.body)+'</p><small>'+esc(String(row.created_at||"").replace("T"," ").slice(0,16))+'</small></div>'+
+        (row.read_at?'<span class="muted">مقروء</span>':'<button class="btn btn-outline btn-small" data-notification-read="'+esc(row.id)+'">تمت المراجعة</button>')+
+      '</article>'
+    ).join("");
+    return '<section class="panel section-gap management-alerts"><div class="section-title-row"><div><h3>تنبيهات الإدارة</h3><p class="panel-note">الأخطاء والتنبيهات المالية والتنبيهات التشغيلية المسجلة في النظام.</p></div>'+
+      badge(unread+" غير مقروء","gold")+'</div>'+
+      (cards?'<div class="management-notification-list">'+cards+'</div>':'<p class="muted management-notification-empty">لا توجد تنبيهات مسجلة حاليًا.</p>')+
+      '<div class="page-actions section-gap"><button class="btn btn-outline btn-small" data-action="open-notifications">فتح مركز الإشعارات</button></div></section>';
+  }
+
   function adminHealthSnapshot() {
     const current=today();
     const cashDates=Array.from(new Set((financialTransactions||[]).filter(tx=>tx.payment_method==="cash"&&tx.transaction_date<current).map(tx=>tx.transaction_date)))
@@ -1620,6 +1638,7 @@
     const health=adminHealthSnapshot();
     return heading("لوحة الإدارة","مركز متابعة إداري يجمع الرقابة المالية ومؤشرات الأداء وسجل المراجعة.",'<button class="btn btn-outline btn-small" data-action="print">طباعة لوحة الإدارة</button>')+
       '<div class="kpi-grid">'+kpi("صحة الإدارة",health.score+"/100",health.status,health.score>=90?"green":(health.score>=70?"gold":"red"))+kpi("توصيات عاجلة",urgent,"تحتاج مراجعة فورية",urgent?"red":"green")+kpi("بنود للمتابعة",follow,"تحتاج إجراء إداري",follow?"gold":"green")+kpi("أحداث سجل المراجعة",auditEntries.length,"آخر الأحداث المحمّلة","blue")+'</div>'+
+      renderManagementNotifications()+
       renderAdminHealthPanel()+
       renderAiAssistantPanel()+
       renderManagementSuggestions(false)+
@@ -2400,6 +2419,17 @@
   $("notificationsBtn").addEventListener("click",()=>{
     notificationPanelOpen=!notificationPanelOpen;
     renderNotificationPanel();
+  });
+  $("mainContent").addEventListener("click",async(event)=>{
+    if(event.target.closest('[data-action="open-notifications"]')){
+      notificationPanelOpen=true;
+      renderNotificationPanel();
+      return;
+    }
+    const read=event.target.closest("[data-notification-read]");
+    if(read && event.target.closest(".management-alerts")){
+      await markNotificationRead(read.dataset.notificationRead);
+    }
   });
   $("notificationsPanel").addEventListener("click",async(event)=>{
     const read=event.target.closest("[data-notification-read]");
