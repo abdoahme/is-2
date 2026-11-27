@@ -726,6 +726,28 @@
     return {opening,committed,earned,profit,balance:opening-committed+earned+profit};
   }
 
+  function purchasingFundsSummary() {
+    const transactions=Array.isArray(financialTransactions)?financialTransactions:[];
+    const cash=currentCashBalance();
+    const bankTransfers=transactions.filter(tx=>tx.payment_method==="bank_transfer").reduce((sum,tx)=>sum+(tx.direction==="inflow"?amount(tx.amount):-amount(tx.amount)),0);
+    const checks=transactions.filter(tx=>tx.payment_method==="check").reduce((sum,tx)=>sum+(tx.direction==="inflow"?amount(tx.amount):-amount(tx.amount)),0);
+    const committedByPartner=new Map();
+    const addCommitment=(partner,value)=>{const key=String(partner||"").trim();if(key)committedByPartner.set(key,(committedByPartner.get(key)||0)+amount(value));};
+    const inventoryIds=new Set((state.cars||[]).filter(car=>!isSoldCar(car)).map(car=>String(car.id)));
+    const movements=Array.isArray(state.partnerMovements)?state.partnerMovements:[];
+    const linkedCapitalIds=new Set(movements.map(m=>String(m.sourceCapitalId||"")).filter(Boolean));
+    movements.forEach(m=>{if(m.type==="contribution"&&inventoryIds.has(String(m.sourceCarId||"")))addCommitment(m.partner,m.amount);});
+    (state.capital||[]).forEach(entry=>{
+      if(entry.sourceCarId&&inventoryIds.has(String(entry.sourceCarId))&&!linkedCapitalIds.has(String(entry.id||""))&&
+        !movements.some(m=>m.type==="contribution"&&String(m.sourceCarId||"")===String(entry.sourceCarId)&&String(m.partner||"").trim()===String(entry.partner||"").trim())){
+        addCommitment(entry.partner,entry.deposited);
+      }
+    });
+    const partnerRows=partnerBalances();
+    const partnerAvailable=partnerRows.reduce((sum,item)=>sum+Math.max(0,item.balance-(committedByPartner.get(item.partner)||0)),0);
+    return {cash:cash.balance,bankTransfers,checks,partnerAvailable,recordedLiquidity:cash.balance+bankTransfers,hasCashReconciliation:cash.hasReconciliation,cashReconciliationDate:cash.latestDate};
+  }
+
   function currentCashBalance() {
     const reconciliations=(cashReconciliations||[]).filter(item=>/^\d{4}-\d{2}-\d{2}$/.test(String(item.reconciliation_date||""))).slice().sort((a,b)=>String(b.reconciliation_date).localeCompare(String(a.reconciliation_date)));
     const latest=reconciliations[0]||null;
@@ -1764,6 +1786,7 @@
     const m = metrics();
     const cash=currentCashBalance();
     const showroom=showroomCapitalSummary();
+    const funds=purchasingFundsSummary();
     const recent = (state.cars || []).slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))).slice(0,4);
     const topExpenses = (state.expenses || []).slice().sort((a,b)=>amount(b.amount)-amount(a.amount)).slice(0,5);
     const waitingRequests = requests.filter(r=>r.status==="pending").length;
@@ -1787,10 +1810,14 @@
       '<div class="summary-line"><span>إجمالي الإيداعات في رأس المال</span><strong class="positive">' + money(m.capitalIn) + '</strong></div>' +
       '<div class="summary-line"><span>إجمالي المسحوبات من رأس المال</span><strong class="negative">' + money(m.capitalOut) + '</strong></div>' +
       '<div class="summary-line"><span>صافي حركة رأس المال مع الربح والخسارة</span><strong class="' + (m.capitalNet>=0?"positive":"negative") + '">' + money(m.capitalNet) + '</strong></div>' +
-      '<div class="summary-line"><span>رصيد الخزينة النقدي</span><strong class="' + (cash.balance>=0?"positive":"negative") + '">' + money(cash.balance) + '</strong></div>' +
-      '<div class="summary-line"><span>رأس مال المعرض المتبقي</span><strong class="' + (showroom.balance>=0?"positive":"negative") + '">' + money(showroom.balance) + '</strong></div>' +
+      '<div class="summary-line"><span>السيولة المسجلة للشراء (الخزينة + صافي التحويلات البنكية)</span><strong class="' + (funds.recordedLiquidity>=0?"positive":"negative") + '">' + money(funds.recordedLiquidity) + '</strong></div>' +
+      '<div class="summary-line"><span>رصيد الخزينة النقدي</span><strong class="' + (funds.cash>=0?"positive":"negative") + '">' + money(funds.cash) + '</strong></div>' +
+      '<div class="summary-line"><span>صافي التحويلات البنكية المسجلة</span><strong class="' + (funds.bankTransfers>=0?"positive":"negative") + '">' + money(funds.bankTransfers) + '</strong></div>' +
+      '<div class="summary-line"><span>صافي الشيكات المسجلة (غير مضافة للسيولة)</span><strong>' + money(funds.checks) + '</strong></div>' +
+      '<div class="summary-line"><span>أرصدة الشركاء المتاحة حسابيًا بعد استبعاد تمويل السيارات غير المباعة</span><strong>' + money(funds.partnerAvailable) + '</strong></div>' +
+      '<div class="summary-line"><span>رأس مال المعرض المتبقي (دفترّي)</span><strong class="' + (showroom.balance>=0?"positive":"negative") + '">' + money(showroom.balance) + '</strong></div>' +
       '<div class="summary-line"><span>طلبات الموظفين المعلقة</span><strong>' + waitingRequests + '</strong></div>' +
-      '</div><p class="panel-note section-gap">رصيد رأس المال ليس مرادفًا لصافي الربح، والمبالغ المتبقية ليست إيرادًا جديدًا؛ كل بند له معنى محاسبي مستقل.</p></section>';
+      '</div><p class="panel-note section-gap">السيولة المسجلة تجمع الخزينة وصافي التحويلات البنكية فقط، ولا تشمل الشيكات قبل تأكيد تحصيلها. رصيد الشركاء معروض كمصدر تمويل منفصل ولا يُضاف مرة أخرى لاحتمال أن تكون مساهماتهم داخلة بالفعل في الخزينة أو البنك. رأس مال المعرض المتبقي رصيد دفتري وليس نقدًا جاهزًا. لا يتوفر رصيد افتتاحي مستقل للبنك في السجلات الحالية.</p></section>';
     return heading("لوحة المتابعة المالية","نظرة واضحة على نشاط المعرض، مع شرح تفصيلي لكل نتيجة.",'<button class="btn btn-outline btn-small" data-action="print">طباعة الملخص</button>') +
       '<div class="kpi-grid">' +
       kpi("إيرادات المبيعات",money(m.sales),m.sold + " سيارة بحالة بيع مسجلة","blue") +
@@ -1798,7 +1825,7 @@
       kpi("صافي نتيجة النشاط",money(m.netProfit),"بعد مصروفات التشغيل والربح والخسارة",m.netProfit>=0?"green":"red") +
       kpi("مصروفات التشغيل",money(m.expenses),"مجموع بنود المصروفات","red") +
       kpi("المبالغ المتبقية",money(m.totalReceivables),"سيارات وذمم مستحقة للمعرض","gold") +
-      kpi("رصيد الخزينة النقدي",money(cash.balance),cash.hasReconciliation?"آخر مطابقة "+dateText(cash.latestDate)+" مع الحركات بعدها":"صافي الحركات النقدية المسجلة","blue") +
+      kpi("السيولة المسجلة للشراء",money(funds.recordedLiquidity),"الخزينة + صافي التحويلات البنكية","blue") +
       kpi("رأس مال المعرض المتبقي",money(showroom.balance),"بعد تمويل المخزون واسترداد التكلفة والأرباح",showroom.balance>=0?"green":"red") +
       '</div>' +
       '<div class="dashboard-info-strip"><span>عدد السيارات: <b>' + m.cars + '</b></span><span>سيارات قيد البيع: <b>' + m.inventory + '</b></span><span>السيارات المباعة: <b>' + m.sold + '</b></span><span>تكلفة إجمالي السيارات المسجلة: <b>' + money(m.purchase) + '</b></span></div>' +
