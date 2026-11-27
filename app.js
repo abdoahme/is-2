@@ -726,6 +726,15 @@
     return {opening,committed,earned,profit,balance:opening-committed+earned+profit};
   }
 
+  function currentCashBalance() {
+    const reconciliations=(cashReconciliations||[]).filter(item=>/^\d{4}-\d{2}-\d{2}$/.test(String(item.reconciliation_date||""))).slice().sort((a,b)=>String(b.reconciliation_date).localeCompare(String(a.reconciliation_date)));
+    const latest=reconciliations[0]||null;
+    const movements=(financialTransactions||[]).filter(tx=>tx.payment_method==="cash"&&(!latest||String(tx.transaction_date||"")>String(latest.reconciliation_date||"")));
+    const movementNet=movements.reduce((sum,tx)=>sum+(tx.direction==="inflow"?amount(tx.amount):-amount(tx.amount)),0);
+    const balance=latest?amount(latest.counted_cash)+movementNet:(financialTransactions||[]).filter(tx=>tx.payment_method==="cash").reduce((sum,tx)=>sum+(tx.direction==="inflow"?amount(tx.amount):-amount(tx.amount)),0);
+    return {balance,latestDate:latest?latest.reconciliation_date:"",hasReconciliation:Boolean(latest)};
+  }
+
   async function loadStaff() {
     const result=await db.rpc("admin_list_is_motors_users");
     if(result.error)throw result.error;
@@ -1753,6 +1762,8 @@
 
   function renderOverview() {
     const m = metrics();
+    const cash=currentCashBalance();
+    const showroom=showroomCapitalSummary();
     const recent = (state.cars || []).slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))).slice(0,4);
     const topExpenses = (state.expenses || []).slice().sort((a,b)=>amount(b.amount)-amount(a.amount)).slice(0,5);
     const waitingRequests = requests.filter(r=>r.status==="pending").length;
@@ -1776,6 +1787,8 @@
       '<div class="summary-line"><span>إجمالي الإيداعات في رأس المال</span><strong class="positive">' + money(m.capitalIn) + '</strong></div>' +
       '<div class="summary-line"><span>إجمالي المسحوبات من رأس المال</span><strong class="negative">' + money(m.capitalOut) + '</strong></div>' +
       '<div class="summary-line"><span>صافي حركة رأس المال مع الربح والخسارة</span><strong class="' + (m.capitalNet>=0?"positive":"negative") + '">' + money(m.capitalNet) + '</strong></div>' +
+      '<div class="summary-line"><span>رصيد الخزينة النقدي</span><strong class="' + (cash.balance>=0?"positive":"negative") + '">' + money(cash.balance) + '</strong></div>' +
+      '<div class="summary-line"><span>رأس مال المعرض المتبقي</span><strong class="' + (showroom.balance>=0?"positive":"negative") + '">' + money(showroom.balance) + '</strong></div>' +
       '<div class="summary-line"><span>طلبات الموظفين المعلقة</span><strong>' + waitingRequests + '</strong></div>' +
       '</div><p class="panel-note section-gap">رصيد رأس المال ليس مرادفًا لصافي الربح، والمبالغ المتبقية ليست إيرادًا جديدًا؛ كل بند له معنى محاسبي مستقل.</p></section>';
     return heading("لوحة المتابعة المالية","نظرة واضحة على نشاط المعرض، مع شرح تفصيلي لكل نتيجة.",'<button class="btn btn-outline btn-small" data-action="print">طباعة الملخص</button>') +
@@ -1785,6 +1798,8 @@
       kpi("صافي نتيجة النشاط",money(m.netProfit),"بعد مصروفات التشغيل والربح والخسارة",m.netProfit>=0?"green":"red") +
       kpi("مصروفات التشغيل",money(m.expenses),"مجموع بنود المصروفات","red") +
       kpi("المبالغ المتبقية",money(m.totalReceivables),"سيارات وذمم مستحقة للمعرض","gold") +
+      kpi("رصيد الخزينة النقدي",money(cash.balance),cash.hasReconciliation?"آخر مطابقة "+dateText(cash.latestDate)+" مع الحركات بعدها":"صافي الحركات النقدية المسجلة","blue") +
+      kpi("رأس مال المعرض المتبقي",money(showroom.balance),"بعد تمويل المخزون واسترداد التكلفة والأرباح",showroom.balance>=0?"green":"red") +
       '</div>' +
       '<div class="dashboard-info-strip"><span>عدد السيارات: <b>' + m.cars + '</b></span><span>سيارات قيد البيع: <b>' + m.inventory + '</b></span><span>السيارات المباعة: <b>' + m.sold + '</b></span><span>تكلفة إجمالي السيارات المسجلة: <b>' + money(m.purchase) + '</b></span></div>' +
       dashboardDetails +
