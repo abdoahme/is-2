@@ -87,6 +87,34 @@
   };
 
   const schemas = {
+    carPurchase: {
+      title:"شراء سيارة",
+      fields:[
+        {key:"model",label:"بيان السيارة / الموديل",required:true},
+        {key:"date",label:"تاريخ الشراء",type:"date",required:true},
+        {key:"chassis",label:"رقم الشاسيه"},
+        {key:"purchasePrice",label:"سعر الشراء",type:"number",required:true},
+        {key:"partnerAllocations",label:"الشركاء المساهمون",type:"partners",full:true},
+        {key:"partnerPaymentMethod",label:"طريقة إيداع الشراكة",type:"select",options:["نقداً بالخزينة","تحويل بنكي","شيك بنكي","إيداع بنكي مباشر"]},
+        {key:"prepCost",label:"مصاريف التجهيز",type:"number"},
+        {key:"notes",label:"ملاحظات",type:"textarea",full:true}
+      ]
+    },
+    carSale: {
+      title:"بيع سيارة",
+      fields:[
+        {key:"carId",label:"السيارة المراد بيعها",type:"select",options:[],required:true},
+        {key:"saleDate",label:"تاريخ البيع",type:"date",required:true},
+        {key:"salePrice",label:"إجمالي سعر البيع",type:"number",required:true},
+        {key:"saleInitialPayment",label:"المبلغ المدفوع عند البيع (الدفعة الأولى)",type:"number"},
+        {key:"salePaymentMethod",label:"طريقة تحصيل الدفعة الأولى",type:"select",options:["نقداً","تحويل بنكي","شيك","بطاقة","أخرى"]},
+        {key:"status",label:"حالة البيع",type:"select",options:["متبقي","تقسيط","كاش","مباع"]},
+        {key:"nextDueDate",label:"موعد القسط القادم (اختياري)",type:"date"},
+        {key:"customer",label:"اسم العميل"},
+        {key:"phone",label:"رقم الهاتف",type:"tel"},
+        {key:"notes",label:"ملاحظات البيع",type:"textarea",full:true}
+      ]
+    },
     cars: {
       title:"السيارة",
       fields:[
@@ -910,7 +938,9 @@
     const cost = amount(c.purchasePrice) + amount(c.prepCost);
     const allocations=carPartnerAllocations(c);
     const shareInfo=allocations.length?allocations.map(x=>'<div class="data-cell"><span>الشريك · '+esc(x.partner)+'</span><strong class="positive">'+money(x.contribution)+' · عائد '+esc(x.sharePercent)+'%</strong></div>').join(''):'<div class="data-cell"><span>التمويل</span><strong>رأس مال المعرض</strong></div>';
-    return '<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">' + esc(c.model || "سيارة بدون اسم") + '</div><div class="data-card-sub">' + dateText(c.date) + ' · ' + esc(c.customer || "بدون عميل") + '</div></div>' + badge(c.status || "قيد البيع", c.status==="كاش"||c.status==="مباع"?"ok":(remaining>0?"warn":"gold")) + '</div><div class="data-card-grid"><div class="data-cell"><span>تكلفة الشراء والتجهيز</span><strong>' + money(cost) + '</strong></div><div class="data-cell"><span>تكلفة التجهيز</span><strong>' + money(c.prepCost) + '</strong></div><div class="data-cell"><span>سعر البيع</span><strong>' + money(c.salePrice) + '</strong></div><div class="data-cell"><span>المدفوع</span><strong class="positive">' + money(carPaid(c)) + '</strong></div><div class="data-cell"><span>المتبقي</span><strong class="' + (remaining>0?"negative":"positive") + '">' + money(remaining) + '</strong></div>' + shareInfo + '</div><div class="card-actions"><button class="btn btn-outline btn-small" data-action="edit" data-collection="cars" data-id="' + esc(c.id) + '">تعديل</button><button class="btn btn-danger btn-small" data-action="delete" data-collection="cars" data-id="' + esc(c.id) + '">حذف</button></div></article>';
+    const sold=isSoldCar(c);
+    const editAction=sold?"edit-car-sale":"edit-car-purchase";
+    return '<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">' + esc(c.model || "سيارة بدون اسم") + '</div><div class="data-card-sub">شراء: ' + dateText(c.date) + (sold?' · بيع: '+dateText(c.saleDate):' · متاحة للبيع') + '</div></div>' + badge(sold?(c.status||"مباعة"):"متاحة للبيع",sold?"ok":"gold") + '</div><div class="data-card-grid"><div class="data-cell"><span>سعر الشراء</span><strong>' + money(c.purchasePrice) + '</strong></div><div class="data-cell"><span>مصاريف التجهيز</span><strong>' + money(c.prepCost) + '</strong></div>'+(sold?'<div class="data-cell"><span>سعر البيع</span><strong>'+money(c.salePrice)+'</strong></div><div class="data-cell"><span>العميل</span><strong>'+esc(c.customer||"—")+'</strong></div><div class="data-cell"><span>المدفوع</span><strong class="positive">'+money(carPaid(c))+'</strong></div><div class="data-cell"><span>المتبقي</span><strong class="'+(remaining>0?"negative":"positive")+'">'+money(remaining)+'</strong></div>':'')+shareInfo+'</div><div class="card-actions"><button class="btn btn-outline btn-small" data-action="'+editAction+'" data-id="' + esc(c.id) + '">'+(sold?"تعديل بيانات البيع":"تعديل بيانات الشراء")+'</button><button class="btn btn-danger btn-small" data-action="delete" data-collection="cars" data-id="' + esc(c.id) + '">حذف</button></div></article>';
   }
   function expenseCard(e) {
     const car=(state.cars||[]).find(item=>String(item.id)===String(e.carId||""));
@@ -1838,6 +1868,17 @@
       '</section></div>' + liquidity;
   }
 
+  function renderCarsManagement() {
+    const available=(state.cars||[]).filter(car=>!isSoldCar(car));
+    const sold=(state.cars||[]).filter(isSoldCar);
+    const actions='<button class="btn btn-primary btn-small" data-action="buy-car">+ شراء سيارة</button><button class="btn btn-outline btn-small" data-action="sell-car">+ بيع سيارة</button>';
+    return heading("السيارات","عمليتان منفصلتان: سجّل الشراء أولاً، ثم اختر السيارة نفسها عند تسجيل البيع.",actions)+
+      '<section class="panel section-gap"><div class="partner-balance-head"><div><h3>السيارات المتاحة للبيع</h3><p class="panel-note">هذه السيارات لم يتم تسجيل بيعها بعد، ويمكن اختيارها من نموذج البيع.</p></div>'+badge(available.length+" سيارة","gold")+'</div>'+
+      (available.length?'<div class="data-list">'+available.map(carCard).join("")+'</div>':empty("لا توجد سيارات متاحة للبيع. استخدم زر شراء سيارة لإضافة سيارة جديدة."))+'</section>'+
+      '<section class="panel section-gap"><div class="partner-balance-head"><div><h3>سجل السيارات المباعة</h3><p class="panel-note">سجلات البيع مرتبطة بالسيارات الأصلية، ولا يتم إنشاء نسخة أخرى من السيارة.</p></div>'+badge(sold.length+" سيارة","ok")+'</div>'+
+      (sold.length?'<div class="data-list">'+sold.map(carCard).join("")+'</div>':empty("لا توجد سيارات مسجلة كمباعة بعد."))+'</section>';
+  }
+
   function renderCollection(collection, title, subtitle, renderer) {
     const q = ($("globalSearch").value || "").trim().toLowerCase();
     let items = (state[collection] || []).slice().sort((a,b)=>String(b.date||b.dueDate||"").localeCompare(String(a.date||a.dueDate||"")));
@@ -2044,7 +2085,7 @@
     if (role !== "admin") return;
     const host = $("mainContent");
     if (currentView === "overview") host.innerHTML = renderOverview();
-    else if (currentView === "cars") host.innerHTML = renderCollection("cars","السيارات","إدارة بيانات الشراء والبيع والتحصيل والمبالغ المتبقية.",carCard);
+    else if (currentView === "cars") host.innerHTML = renderCarsManagement();
     else if (currentView === "expenses") host.innerHTML = renderCollection("expenses","مصروفات التشغيل","تسجيل ومراجعة كل المصروفات الفعلية للمعرض.",expenseCard);
     else if (currentView === "debts") host.innerHTML = renderCollection("debts","الذمم والأقساط","المبالغ المستحقة للمعرض أو المستحقة عليه.",debtCard);
     else if (currentView === "capital") host.innerHTML = renderCollection("capital","رأس المال وحركة الخزينة","الإيداعات والمسحوبات وحركة الشركاء.",capitalCard) +
@@ -2081,7 +2122,7 @@
 
   function updateCarSalePreview(){
     const host=$("carSaleCalcPreview"),fields=$("editorFields");
-    if(!host||!fields||editingCollection!=="cars")return;
+    if(!host||!fields||!(editingCollection==="cars"||editingCollection==="carSale"))return;
     const read=name=>fields.querySelector('[name="'+name+'"]');
     const sale=amount(read("salePrice")&&read("salePrice").value);
     const first=amount(read("saleInitialPayment")&&read("saleInitialPayment").value);
@@ -2103,16 +2144,22 @@
     if (!schema) return;
     editingCollection = collection;
     editingId = id || null;
-    const item = id ? (state[collection] || []).find(x=>String(x.id)===String(id)) : null;
+    const carMode=collection==="carPurchase"||collection==="carSale";
+    const item = id ? (state[carMode?"cars":collection] || []).find(x=>String(x.id)===String(id)) : null;
     if (collection==="capital" && item && isLinkedCapitalEntry(item)) {
       toast("هذا القيد مرتبط بسيارة أو حركة شريك. عدّله من سجل السيارة أو اتركه كما هو للحفاظ على تطابق الدفاتر.", "error");
       return;
     }
-    const defaults = {id:makeId(),date:today(),saleDate:today(),dueDate:today(),status:collection==="cars"?"قيد البيع":(collection==="debts"?"قيد المتابعة":""),paidAmount:0,saleInitialPayment:0,purchasePrice:0,prepCost:0,salePrice:0,amount:0,totalAmount:0,deposited:0,withdrawn:0,profitLossAmount:0,partnerContribution:0};
+    const defaults = {id:makeId(),date:today(),saleDate:today(),dueDate:today(),status:collection==="cars"||collection==="carPurchase"?"قيد البيع":(collection==="carSale"?"متبقي":(collection==="debts"?"قيد المتابعة":"")),paidAmount:0,saleInitialPayment:0,purchasePrice:0,prepCost:0,salePrice:0,amount:0,totalAmount:0,deposited:0,withdrawn:0,profitLossAmount:0,partnerContribution:0};
     const value = Object.assign({},defaults,item||{});
-    if(collection==="cars" && item && !value.saleDate) value.saleDate=value.date||today();
-    if(collection==="cars")value.partnerAllocations=carPartnerAllocations(value);
-    const fields = collection === "partnerPayouts"
+    if((collection==="cars"||collection==="carPurchase") && item && !value.saleDate) value.saleDate=value.date||today();
+    if(collection==="cars"||collection==="carPurchase")value.partnerAllocations=carPartnerAllocations(value);
+    if(collection==="carSale")value.carId=String(item&&item.id||id||"");
+    const fields = collection==="carSale"
+      ? schema.fields.map(field=>field.key==="carId"
+        ? Object.assign({},field,{options:[{value:"",label:"— اختر السيارة المتاحة —"}].concat((state.cars||[]).filter(car=>!isSoldCar(car)||String(car.id)===String(value.carId||"")).map(car=>({value:String(car.id),label:String(car.model||"سيارة")+" · "+String(car.chassis||"")+" · شراء "+money(car.purchasePrice)})))})
+        : field)
+      : collection === "partnerPayouts"
       ? schema.fields.map(field => field.key === "partner"
         ? Object.assign({},field,{options:partnerBalances().filter(x=>x.balance>0).map(x=>x.partner)})
         : field)
@@ -2148,7 +2195,7 @@
       return '<label class="' + cls + '"' + (field.showWhen?' data-show-field="' + esc(field.showWhen.field) + '" data-show-value="' + esc(field.showWhen.value) + '"':"") + '>' + esc(field.label) + control + '</label>';
     }).join("") + (collection==="cars" ? '<div id="carSaleCalcPreview" class="dashboard-info-strip full section-gap" aria-live="polite"></div>' : "");
     updateConditionalEditorFields();
-    if(collection==="cars") updateCarSalePreview();
+    if(collection==="cars"||collection==="carSale") updateCarSalePreview();
     translateDOM($("editorDialog"));
     $("editorDialog").showModal();
   }
@@ -2168,8 +2215,9 @@
     event.preventDefault();
     if (saving) { toast("هناك عملية حفظ جارية؛ انتظر تأكيدها قبل تسجيل حركة جديدة.", "error"); return; }
     if (!editingCollection) return;
-    const collection = editingCollection;
-    const schema = schemas[collection];
+    const editorType=editingCollection;
+    const collection=(editorType==="carPurchase"||editorType==="carSale")?"cars":editorType;
+    const schema = schemas[editorType];
     if (collection==="capital" && editingId) {
       const linkedEntry = state.capital.find(entry=>String(entry.id)===String(editingId));
       if (linkedEntry && isLinkedCapitalEntry(linkedEntry)) {
@@ -2178,7 +2226,7 @@
       }
     }
     const previous = clone(state);
-    const previousCar = collection==="cars" && editingId
+    const previousCar = (collection==="cars" || editorType==="carPurchase" || editorType==="carSale") && editingId
       ? clone(state.cars.find(x=>String(x.id)===String(editingId)) || null)
       : null;
     const previousExpense = collection==="expenses" && editingId
@@ -2190,7 +2238,7 @@
       if(field.key==="partnerAllocations")return;
       const raw=form.get(field.key);data[field.key]=field.type==="number"?num(raw):String(raw||"").trim();
     });
-    if(collection==="cars"){
+    if(editorType==="carPurchase" || collection==="cars"){
       const allocations=[];
       const rows=Array.from($("editorFields").querySelectorAll("[data-partner-row]"));
       for(const row of rows){
@@ -2208,8 +2256,27 @@
       data.partnerAllocations=allocations;delete data.partnerName;delete data.partnerContribution;delete data.partnerSharePercent;
     }
     const originalRecord = editingId ? (state[collection] || []).find(item=>String(item.id)===String(editingId)) : null;
+    if(editorType==="carSale"){
+      const selectedCar=(state.cars||[]).find(car=>String(car.id)===String(data.carId||""));
+      if(!selectedCar){toast("اختر سيارة من قائمة السيارات المتاحة للبيع.","error");return;}
+      if(isSoldCar(selectedCar) && String(selectedCar.id)!==String(editingId||"")){toast("هذه السيارة مسجلة كمباعة بالفعل.","error");return;}
+      const saleFields=["saleDate","salePrice","saleInitialPayment","salePaymentMethod","status","nextDueDate","customer","phone"];
+      const saleData={};saleFields.forEach(key=>saleData[key]=data[key]);
+      saleData.saleDate=saleData.saleDate||today();
+      if(amount(saleData.salePrice)<=0){toast("أدخل إجمالي سعر البيع بشكل صحيح.","error");return;}
+      if(amount(saleData.saleInitialPayment)>amount(saleData.salePrice)+0.0001){toast("الدفعة الأولى لا يمكن أن تتجاوز إجمالي سعر البيع.","error");return;}
+      const merged=Object.assign({},selectedCar,saleData,{notes:data.notes||selectedCar.notes||""});
+      if(amount(merged.saleInitialPayment)>0 && amount(merged.saleInitialPayment)<amount(merged.salePrice) && merged.status==="كاش")merged.status="متبقي";
+      if(amount(merged.saleInitialPayment)>=amount(merged.salePrice)-0.0001 && merged.status==="متبقي")merged.status="كاش";
+      Object.keys(data).forEach(key=>delete data[key]);
+      Object.assign(data,merged);
+      editingId=String(selectedCar.id);
+    } else if(editorType==="carPurchase"){
+      data.salePrice=0;data.saleInitialPayment=0;data.salePaymentMethod="نقداً";data.saleDate="";
+      data.status="قيد البيع";data.customer="";data.phone="";data.nextDueDate="";
+    }
     const originalDate = recordDate(originalRecord);
-    const proposedDate = recordDate(data);
+    const proposedDate = editorType==="carSale"?recordDate({date:data.saleDate}):recordDate(data);
     if (isPeriodLocked(originalDate) || isPeriodLocked(proposedDate)) {
       toast("هذه الفترة مقفلة. لا يمكن إضافة أو تعديل سجلات فيها قبل إعادة فتح التقفيل بسبب موثّق.", "error");
       return;
@@ -2278,13 +2345,13 @@
       toast("يجب أن يكون مبلغ المصروف أكبر من صفر.", "error");
       return;
     }
-    if (collection==="cars" && amount(data.saleInitialPayment) > amount(data.salePrice) + 0.0001) {
+    if (collection==="cars" && editorType!=="carPurchase" && amount(data.saleInitialPayment) > amount(data.salePrice) + 0.0001) {
       toast("الدفعة الأولى لا يمكن أن تتجاوز إجمالي سعر البيع.", "error");
       return;
     }
-    if(collection==="cars" && isSoldCar(data) && amount(data.salePrice)<=0){toast("أدخل سعر البيع قبل اعتماد بيع السيارة.","error");return;}
-    if(collection==="cars" && amount(data.saleInitialPayment)>0 && !isSoldCar(data)) data.status="متبقي";
-    if(collection==="cars" && isSoldCar(data)){
+    if(collection==="cars" && editorType!=="carPurchase" && isSoldCar(data) && amount(data.salePrice)<=0){toast("أدخل سعر البيع قبل اعتماد بيع السيارة.","error");return;}
+    if(collection==="cars" && editorType!=="carPurchase" && amount(data.saleInitialPayment)>0 && !isSoldCar(data)) data.status="متبقي";
+    if(collection==="cars" && editorType!=="carPurchase" && isSoldCar(data)){
       data.saleDate=data.saleDate||data.date||today();
       const carId=String(data.id||editingId||"");
       const otherPaid=financialTransactions.filter(tx=>String(tx.car_id||"")===carId&&tx.source_type!=="car_sale_payment"&&
@@ -2292,7 +2359,7 @@
       ).reduce((sum,tx)=>sum+(tx.direction==="inflow"?amount(tx.amount):-amount(tx.amount)),0);
       if(data.status==="كاش" && Math.max(0,otherPaid)+amount(data.saleInitialPayment)<amount(data.salePrice)-0.0001) data.status="متبقي";
     }
-    if(collection==="cars"&&data.partnerAllocations.some(x=>!x.partner||x.contribution<=0||x.sharePercent<0||x.sharePercent>100)){toast("تحقق من أسماء الشركاء ومساهماتهم ونسب العائد.","error");return;}
+    if(editorType==="carPurchase" && data.partnerAllocations.some(x=>!x.partner||x.contribution<=0||x.sharePercent<0||x.sharePercent>100)){toast("تحقق من أسماء الشركاء ومساهماتهم ونسب العائد.","error");return;}
     if (collection==="debts" && (data.totalAmount<=0 || data.paidAmount > data.totalAmount + 0.0001)) {
       toast("يجب أن يكون إجمالي الذمة أكبر من صفر، ولا يمكن أن يتجاوز المسدد إجماليها.", "error");
       return;
@@ -2342,7 +2409,7 @@
         try{applyMaintenanceExpenseCost(previousExpense,savedExpense);}
         catch(error){state=previous;toast(error.message||"تعذر ربط مصروف الصيانة بالسيارة.","error");render();return;}
       }
-      if (collection==="cars") {
+      if (collection==="cars" && editorType!=="carSale") {
         const savedCar = state.cars.find(x=>String(x.id)===String(editingId || data.id));
         try {
           if (savedCar) syncCarPartnerContribution(savedCar, previousCar);
@@ -2691,6 +2758,10 @@
     if(!btn)return;
     const action=btn.dataset.action;
     if(action==="add")openEditor(btn.dataset.collection);
+    else if(action==="buy-car")openEditor("carPurchase");
+    else if(action==="sell-car")openEditor("carSale");
+    else if(action==="edit-car-purchase")openEditor("carPurchase",btn.dataset.id);
+    else if(action==="edit-car-sale")openEditor("carSale",btn.dataset.id);
     else if(action==="add-financial-transaction")openEditor("financialTransactions");
     else if(action==="print-financial-receipt")printFinancialReceipt(btn.dataset.id);
     else if(action==="reverse-financial-transaction"){
