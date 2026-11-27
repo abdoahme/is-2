@@ -711,10 +711,14 @@
   }
   function carProfitDetails(car) {
     const cost=amount(car.purchasePrice)+amount(car.prepCost),profit=amount(car.salePrice)-cost,allocations=carPartnerAllocations(car);
-    const expected=allocations.map(x=>Object.assign({},x,{expectedProfit:x.contribution*x.sharePercent/100}));
+    // With one outside partner, the agreed percentage is their share of the
+    // realized vehicle profit; the showroom automatically receives the remainder.
+    // Keep the existing capital-return calculation for multiple partners.
+    const singlePartner=allocations.length===1;
+    const expected=allocations.map(x=>Object.assign({},x,{expectedProfit:singlePartner?Math.max(0,profit)*x.sharePercent/100:x.contribution*x.sharePercent/100}));
     const total=expected.reduce((s,x)=>s+x.expectedProfit,0),factor=isSoldCar(car)&&profit>0?Math.min(1,profit/Math.max(total,0.000001)):0;
     const partnerProfits=expected.map(x=>Object.assign({},x,{profit:x.expectedProfit*factor})),partnerProfit=partnerProfits.reduce((s,x)=>s+x.profit,0);
-    return {cost,profit,sharePercent:0,partnerProfit,partnerProfits,showroomProfit:isSoldCar(car)?profit-partnerProfit:0,showPartner:allocations.length>0,allocations,inferred:false};
+    return {cost,profit,sharePercent:singlePartner?allocations[0].sharePercent:0,partnerProfit,partnerProfits,showroomProfit:isSoldCar(car)?profit-partnerProfit:0,showPartner:allocations.length>0,allocations,inferred:false};
   }
   function showroomCapitalSummary() {
     const opening=amount(state.appSettings&&state.appSettings.showroomCapitalOpening);let committed=0,earned=0,profit=0;
