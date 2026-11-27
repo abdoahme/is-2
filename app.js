@@ -718,7 +718,7 @@
   }
   function showroomCapitalSummary() {
     const opening=amount(state.appSettings&&state.appSettings.showroomCapitalOpening);let committed=0,earned=0,profit=0;
-    (state.cars||[]).forEach(car=>{const d=carProfitDetails(car),partnerCapital=d.allocations.reduce((s,x)=>s+x.contribution,0),funded=Math.max(0,d.cost-partnerCapital);if(isSoldCar(car)){earned+=funded;profit+=d.showroomProfit;}else committed+=funded;});
+    (state.cars||[]).forEach(car=>{const d=carProfitDetails(car),partnerCapital=d.allocations.reduce((s,x)=>s+x.contribution,0),funded=Math.max(0,amount(car.purchasePrice)-partnerCapital);if(isSoldCar(car)){earned+=funded;profit+=d.showroomProfit;}else committed+=funded;});
     return {opening,committed,earned,profit,balance:opening-committed+earned+profit};
   }
 
