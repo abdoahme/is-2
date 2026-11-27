@@ -918,3 +918,5 @@ html[dir="ltr"] .receipt-signatures{text-align:center}
 .partner-allocation-row .btn{min-height:42px}
 .partner-allocation-editor>.panel-note{margin:0;line-height:1.7}
 @media(max-width:720px){.partner-allocation-row{grid-template-columns:1fr}.partner-row-title{grid-column:auto}.partner-allocation-row .btn{width:100%}}
+
+.partner-field-label{font-size:13px;font-weight:900;color:var(--text);margin-bottom:9px}
