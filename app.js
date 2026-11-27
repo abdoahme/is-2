@@ -94,7 +94,7 @@
         {key:"date",label:"تاريخ الحركة",type:"date"},
         {key:"chassis",label:"رقم الشاسيه"},
         {key:"purchasePrice",label:"سعر الشراء",type:"number"},
-        {key:"partnerAllocations",label:"الشركاء المساهمون (كل سطر: اسم الشريك | المساهمة | نسبة العائد %)",type:"textarea",full:true},
+        {key:"partnerAllocations",label:"الشركاء المساهمون",type:"partners",full:true},
         {key:"partnerPaymentMethod",label:"طريقة إيداع الشراكة",type:"select",options:["نقداً بالخزينة","تحويل بنكي","شيك بنكي","إيداع بنكي مباشر"]},
         {key:"prepCost",label:"مصاريف التجهيز",type:"number"},
         {key:"salePrice",label:"إجمالي سعر البيع",type:"number"},
@@ -2069,7 +2069,7 @@
     const defaults = {id:makeId(),date:today(),saleDate:today(),dueDate:today(),status:collection==="cars"?"قيد البيع":(collection==="debts"?"قيد المتابعة":""),paidAmount:0,saleInitialPayment:0,purchasePrice:0,prepCost:0,salePrice:0,amount:0,totalAmount:0,deposited:0,withdrawn:0,profitLossAmount:0,partnerContribution:0};
     const value = Object.assign({},defaults,item||{});
     if(collection==="cars" && item && !value.saleDate) value.saleDate=value.date||today();
-    if(collection==="cars")value.partnerAllocations=carPartnerAllocations(value).map(x=>x.partner+" | "+x.contribution+" | "+x.sharePercent).join("\n");
+    if(collection==="cars")value.partnerAllocations=carPartnerAllocations(value);
     const fields = collection === "partnerPayouts"
       ? schema.fields.map(field => field.key === "partner"
         ? Object.assign({},field,{options:partnerBalances().filter(x=>x.balance>0).map(x=>x.partner)})
@@ -2094,6 +2094,9 @@
           const optionLabel=typeof opt==="string"?(opt||"—"):opt.label;
           return '<option value="' + esc(optionValue) + '"' + (String(val)===String(optionValue)?" selected":"") + '>' + esc(optionLabel) + '</option>';
         }).join("") + '</select>';
+      } else if (field.type === "partners") {
+        const allocations=Array.isArray(val)&&val.length?val:[{}];
+        control = '<div class="partner-allocation-editor full" id="partnerAllocationEditor"><div class="partner-allocation-list">' + allocations.map((allocation,index)=>'<div class="partner-allocation-row" data-partner-row><div class="partner-row-title">الشريك '+(index+1)+'</div><label>اسم الشريك<input type="text" data-partner-field="partner" maxlength="100" placeholder="اكتب اسم الشريك" value="'+esc(allocation.partner||'')+'"></label><label>مبلغ المساهمة (ج.م)<input type="number" data-partner-field="contribution" min="0" step="0.01" dir="ltr" placeholder="مثال: 50000" value="'+(allocation.contribution==null?'':esc(allocation.contribution))+'"></label><label>نسبة العائد %<input type="number" data-partner-field="sharePercent" min="0" max="100" step="0.01" dir="ltr" placeholder="مثال: 30" value="'+(allocation.sharePercent==null?'':esc(allocation.sharePercent))+'"></label><button type="button" class="btn btn-danger btn-small" data-remove-partner-row>حذف الشريك</button></div>').join('')+'</div><button type="button" class="btn btn-outline btn-small" data-add-partner-row>+ إضافة شريك آخر</button><p class="panel-note">أدخل بيانات كل شريك في حقول مستقلة. يمكنك إضافة أكثر من شريك أو ترك القسم فارغًا إذا كانت السيارة من رأس مال المعرض.</p></div>';
       } else if (field.type === "textarea") {
         control = '<textarea name="' + esc(field.key) + '" maxlength="1000">' + esc(val) + '</textarea>';
       } else {
@@ -2140,15 +2143,25 @@
       : null;
     const form = new FormData($("editorForm"));
     const data = {};
-    schema.fields.forEach(field=>{const raw=form.get(field.key);data[field.key]=field.type==="number"?num(raw):String(raw||"").trim();});
+    schema.fields.forEach(field=>{
+      if(field.key==="partnerAllocations")return;
+      const raw=form.get(field.key);data[field.key]=field.type==="number"?num(raw):String(raw||"").trim();
+    });
     if(collection==="cars"){
       const allocations=[];
-      for(const line of String(data.partnerAllocations||"").split(/\r?\n/).map(x=>x.trim()).filter(Boolean)){
-        const p=line.split("|").map(x=>x.trim());
-        if(p.length!==3||!p[0]||!Number.isFinite(Number(p[1]))||!Number.isFinite(Number(p[2]))||Number(p[1])<=0||Number(p[2])<0||Number(p[2])>100){toast("صيغة الشريك غير صحيحة. كل سطر: اسم الشريك | المساهمة | نسبة العائد من 1 إلى 100.","error");return;}
-        allocations.push({partner:p[0],contribution:Number(p[1]),sharePercent:Number(p[2])});
+      const rows=Array.from($("editorFields").querySelectorAll("[data-partner-row]"));
+      for(const row of rows){
+        const partner=row.querySelector('[data-partner-field="partner"]').value.trim();
+        const contributionRaw=row.querySelector('[data-partner-field="contribution"]').value.trim();
+        const shareRaw=row.querySelector('[data-partner-field="sharePercent"]').value.trim();
+        if(!partner&&!contributionRaw&&!shareRaw)continue;
+        const contribution=num(contributionRaw),sharePercent=num(shareRaw);
+        if(!partner||!contributionRaw||!shareRaw||!Number.isFinite(contribution)||!Number.isFinite(sharePercent)||contribution<=0||sharePercent<0||sharePercent>100){
+          toast("أكمل اسم الشريك ومبلغ مساهمته ونسبة العائد بشكل صحيح لكل شريك.","error");return;
+        }
+        allocations.push({partner,contribution,sharePercent});
       }
-      if(new Set(allocations.map(x=>x.partner.toLocaleLowerCase())).size!==allocations.length){toast("لا تكرر اسم الشريك في السيارة نفسها؛ اجمع مساهمته في سطر واحد.","error");return;}
+      if(new Set(allocations.map(x=>x.partner.toLocaleLowerCase())).size!==allocations.length){toast("لا تكرر اسم الشريك في السيارة نفسها؛ اجمع مساهمته في صف واحد.","error");return;}
       data.partnerAllocations=allocations;delete data.partnerName;delete data.partnerContribution;delete data.partnerSharePercent;
     }
     const originalRecord = editingId ? (state[collection] || []).find(item=>String(item.id)===String(editingId)) : null;
@@ -2586,6 +2599,30 @@
   document.querySelectorAll(".language-select").forEach(select=>select.addEventListener("change",()=>setLanguage(select.value)));
   $("employeeLogoutBtn").addEventListener("click",logout);
   $("editorFields").addEventListener("change",event=>{if(event.target.name==="category")updateConditionalEditorFields();if(["salePrice","saleInitialPayment","status"].includes(event.target.name))updateCarSalePreview();});
+  $("editorFields").addEventListener("click",event=>{
+    const add=event.target.closest("[data-add-partner-row]");
+    if(add){
+      const list=$("editorFields").querySelector(".partner-allocation-list");
+      if(!list)return;
+      const index=list.querySelectorAll("[data-partner-row]").length+1;
+      const row=document.createElement("div");
+      row.className="partner-allocation-row";
+      row.setAttribute("data-partner-row","");
+      row.innerHTML='<div class="partner-row-title">الشريك '+index+'</div><label>اسم الشريك<input type="text" data-partner-field="partner" maxlength="100" placeholder="اكتب اسم الشريك"></label><label>مبلغ المساهمة (ج.م)<input type="number" data-partner-field="contribution" min="0" step="0.01" dir="ltr" placeholder="مثال: 50000"></label><label>نسبة العائد %<input type="number" data-partner-field="sharePercent" min="0" max="100" step="0.01" dir="ltr" placeholder="مثال: 30"></label><button type="button" class="btn btn-danger btn-small" data-remove-partner-row>حذف الشريك</button>';
+      list.appendChild(row);
+      row.querySelector('[data-partner-field="partner"]').focus();
+      return;
+    }
+    const remove=event.target.closest("[data-remove-partner-row]");
+    if(remove){
+      const list=$("editorFields").querySelector(".partner-allocation-list");
+      const row=remove.closest("[data-partner-row]");
+      if(row)row.remove();
+      if(list)Array.from(list.querySelectorAll("[data-partner-row]")).forEach((item,index)=>{
+        const title=item.querySelector(".partner-row-title");if(title)title.textContent="الشريك "+(index+1);
+      });
+    }
+  });
   $("editorFields").addEventListener("input",event=>{if(["salePrice","saleInitialPayment","status"].includes(event.target.name))updateCarSalePreview();});
   $("editorForm").addEventListener("submit",submitEditor);
   $("closeEditorBtn").addEventListener("click",()=>$("editorDialog").close());
