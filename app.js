@@ -705,16 +705,16 @@
   }
 
   function carPartnerAllocations(car) {
-    if(Array.isArray(car&&car.partnerAllocations)&&car.partnerAllocations.length)return car.partnerAllocations.map(x=>({partner:String(x.partner||"").trim(),contribution:amount(x.contribution),sharePercent:amount(x.sharePercent)})).filter(x=>x.partner&&x.contribution>0&&x.sharePercent>0);
+    if(Array.isArray(car&&car.partnerAllocations)&&car.partnerAllocations.length)return car.partnerAllocations.map(x=>({partner:String(x.partner||"").trim(),contribution:amount(x.contribution),sharePercent:amount(x.sharePercent)})).filter(x=>x.partner&&x.contribution>0&&x.sharePercent>=0);
     const partner=String(car&&car.partnerName||"").trim(),contribution=amount(car&&car.partnerContribution),sharePercent=amount(car&&car.partnerSharePercent);
-    return partner&&contribution>0&&sharePercent>0?[{partner,contribution,sharePercent}]:[];
+    return partner&&contribution>0?[{partner,contribution,sharePercent:Math.max(0,sharePercent)}]:[];
   }
   function carProfitDetails(car) {
     const cost=amount(car.purchasePrice)+amount(car.prepCost),profit=amount(car.salePrice)-cost,allocations=carPartnerAllocations(car);
     const expected=allocations.map(x=>Object.assign({},x,{expectedProfit:x.contribution*x.sharePercent/100}));
     const total=expected.reduce((s,x)=>s+x.expectedProfit,0),factor=isSoldCar(car)&&profit>0?Math.min(1,profit/Math.max(total,0.000001)):0;
     const partnerProfits=expected.map(x=>Object.assign({},x,{profit:x.expectedProfit*factor})),partnerProfit=partnerProfits.reduce((s,x)=>s+x.profit,0);
-    return {cost,profit,sharePercent:0,partnerProfit,partnerProfits,showroomProfit:isSoldCar(car)&&profit>0?Math.max(0,profit-partnerProfit):0,showPartner:allocations.length>0,allocations,inferred:false};
+    return {cost,profit,sharePercent:0,partnerProfit,partnerProfits,showroomProfit:isSoldCar(car)?profit-partnerProfit:0,showPartner:allocations.length>0,allocations,inferred:false};
   }
   function showroomCapitalSummary() {
     const opening=amount(state.appSettings&&state.appSettings.showroomCapitalOpening);let committed=0,earned=0,profit=0;
@@ -2144,7 +2144,6 @@
         if(p.length!==3||!p[0]||!Number.isFinite(Number(p[1]))||!Number.isFinite(Number(p[2]))||Number(p[1])<=0||Number(p[2])<=0||Number(p[2])>100){toast("صيغة الشريك غير صحيحة. كل سطر: اسم الشريك | المساهمة | نسبة العائد من 1 إلى 100.","error");return;}
         allocations.push({partner:p[0],contribution:Number(p[1]),sharePercent:Number(p[2])});
       }
-      if(allocations.reduce((s,x)=>s+x.sharePercent,0)>100.0001){toast("مجموع نسب عوائد الشركاء لا يمكن أن يتجاوز 100%.","error");return;}
       if(new Set(allocations.map(x=>x.partner.toLocaleLowerCase())).size!==allocations.length){toast("لا تكرر اسم الشريك في السيارة نفسها؛ اجمع مساهمته في سطر واحد.","error");return;}
       data.partnerAllocations=allocations;delete data.partnerName;delete data.partnerContribution;delete data.partnerSharePercent;
     }
