@@ -2102,6 +2102,7 @@
       } else {
         control = '<input name="' + esc(field.key) + '" type="' + (field.type || "text") + '"' + (field.type==="number"?' min="0" step="0.01" dir="ltr"':'') + (field.type==="date"?'':'') + ' value="' + esc(val) + '"' + (field.required?' required':'') + '>';
       }
+      if(field.type==="partners")return '<div class="' + cls + ' partner-field-wrap"><div class="partner-field-label">' + esc(field.label) + '</div>' + control + '</div>';
       return '<label class="' + cls + '"' + (field.showWhen?' data-show-field="' + esc(field.showWhen.field) + '" data-show-value="' + esc(field.showWhen.value) + '"':"") + '>' + esc(field.label) + control + '</label>';
     }).join("") + (collection==="cars" ? '<div id="carSaleCalcPreview" class="dashboard-info-strip full section-gap" aria-live="polite"></div>' : "");
     updateConditionalEditorFields();
