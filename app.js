@@ -94,9 +94,7 @@
         {key:"date",label:"تاريخ الحركة",type:"date"},
         {key:"chassis",label:"رقم الشاسيه"},
         {key:"purchasePrice",label:"سعر الشراء",type:"number"},
-        {key:"partnerName",label:"اسم الشريك المساهم (اختياري)"},
-        {key:"partnerContribution",label:"مبلغ مساهمة الشريك",type:"number"},
-        {key:"partnerSharePercent",label:"نسبة ربح الشريك المتفق عليها % (اختياري)",type:"number"},
+        {key:"partnerAllocations",label:"الشركاء المساهمون (كل سطر: اسم الشريك | المساهمة | نسبة العائد %)",type:"textarea",full:true},
         {key:"partnerPaymentMethod",label:"طريقة إيداع الشراكة",type:"select",options:["نقداً بالخزينة","تحويل بنكي","شيك بنكي","إيداع بنكي مباشر"]},
         {key:"prepCost",label:"مصاريف التجهيز",type:"number"},
         {key:"salePrice",label:"إجمالي سعر البيع",type:"number"},
@@ -706,19 +704,22 @@
     return Array.from(map.values()).sort((a,b)=>(b.remaining+b.debtReceivable)-(a.remaining+a.debtReceivable));
   }
 
+  function carPartnerAllocations(car) {
+    if(Array.isArray(car&&car.partnerAllocations)&&car.partnerAllocations.length)return car.partnerAllocations.map(x=>({partner:String(x.partner||"").trim(),contribution:amount(x.contribution),sharePercent:amount(x.sharePercent)})).filter(x=>x.partner&&x.contribution>0&&x.sharePercent>0);
+    const partner=String(car&&car.partnerName||"").trim(),contribution=amount(car&&car.partnerContribution),sharePercent=amount(car&&car.partnerSharePercent);
+    return partner&&contribution>0&&sharePercent>0?[{partner,contribution,sharePercent}]:[];
+  }
   function carProfitDetails(car) {
-    const cost=amount(car.purchasePrice)+amount(car.prepCost);
-    const profit=amount(car.salePrice)-cost;
-    const explicit=Number(car.partnerSharePercent);
-    const hasAgreedRate=Number.isFinite(explicit)&&explicit>0;
-    const sharePercent=hasAgreedRate?Math.min(100,explicit):0;
-    // Partner return is calculated on the partner's contributed capital, and only
-    // becomes available after a profitable sale. Never distribute more than this
-    // vehicle's realized gross profit.
-    const agreedReturn=amount(car.partnerContribution)*sharePercent/100;
-    const partnerProfit=amount(car.partnerContribution)>0&&hasAgreedRate&&isSoldCar(car)&&profit>0
-      ? Math.min(profit,agreedReturn) : 0;
-    return {cost,profit,sharePercent,partnerProfit,showroomProfit:profit-partnerProfit,showPartner:amount(car.partnerContribution)>0,inferred:false};
+    const cost=amount(car.purchasePrice)+amount(car.prepCost),profit=amount(car.salePrice)-cost,allocations=carPartnerAllocations(car);
+    const expected=allocations.map(x=>Object.assign({},x,{expectedProfit:x.contribution*x.sharePercent/100}));
+    const total=expected.reduce((s,x)=>s+x.expectedProfit,0),factor=isSoldCar(car)&&profit>0?Math.min(1,profit/Math.max(total,0.000001)):0;
+    const partnerProfits=expected.map(x=>Object.assign({},x,{profit:x.expectedProfit*factor})),partnerProfit=partnerProfits.reduce((s,x)=>s+x.profit,0);
+    return {cost,profit,sharePercent:0,partnerProfit,partnerProfits,showroomProfit:isSoldCar(car)&&profit>0?Math.max(0,profit-partnerProfit):0,showPartner:allocations.length>0,allocations,inferred:false};
+  }
+  function showroomCapitalSummary() {
+    const opening=amount(state.appSettings&&state.appSettings.showroomCapitalOpening);let committed=0,earned=0,profit=0;
+    (state.cars||[]).forEach(car=>{const d=carProfitDetails(car),partnerCapital=d.allocations.reduce((s,x)=>s+x.contribution,0),funded=Math.max(0,d.cost-partnerCapital);if(isSoldCar(car)){earned+=funded;profit+=d.showroomProfit;}else committed+=funded;});
+    return {opening,committed,earned,profit,balance:opening-committed+earned+profit};
   }
 
   async function loadStaff() {
@@ -849,26 +850,16 @@
     });
     // Earned car profits are derived from sold, profitable vehicles; they are not
     // persisted as movements, so re-rendering or reloading cannot accrue them twice.
-    (state.cars || []).forEach(car => {
-      const item = get(car.partnerName);
-      if (!item || amount(car.partnerContribution)<=0) return;
-      item.profit += carProfitDetails(car).partnerProfit;
-    });
+    (state.cars || []).forEach(car => carProfitDetails(car).partnerProfits.forEach(share=>{const item=get(share.partner);if(item)item.profit+=share.profit;}));
     return Array.from(balances.values()).map(item => Object.assign({},item,{balance:item.contributed+item.profit-item.withdrawn})).sort((a,b)=>a.partner.localeCompare(b.partner,"ar"));
   }
 
 
   function renderPartnerBalances() {
-    const active = partnerBalances();
-    const canWithdraw = active.some((item) => item.balance > 0);
-    const action = '<button class="btn btn-primary btn-small" data-action="add-partner-payout"' +
-      (canWithdraw ? '' : ' disabled') + '>+ سحب من رصيد شريك</button>';
-    return '<section class="panel section-gap"><div class="partner-balance-head"><div><h3>أرصدة الشركاء المتاحة</h3><p class="panel-note">الرصيد المتاح = رأس المال + أرباح السيارات المباعة والمربحة حسب النسبة المتفق عليها − المسحوبات. لا تُضاف الأرباح قبل إتمام بيع السيارة.</p></div><div class="page-actions">' + action + '</div></div>' +
-      (active.length ? '<div class="summary-list">' + active.map((item) =>
-        '<div class="summary-line"><span>' + esc(item.partner) + ' · رأس المال ' + money(item.contributed) + ' · أرباح مستحقة ' + money(item.profit) + ' · مسحوبات ' + money(item.withdrawn) + '</span><strong class="' +
-        (item.balance > 0 ? 'positive' : (item.balance < 0 ? 'negative' : '')) + '">' + money(item.balance) + '</strong></div>'
-      ).join('') + '</div>' : empty("لم تُسجّل مساهمات شركاء بعد. أضف اسم الشريك ومبلغ مساهمته عند تسجيل شراء السيارة.")) +
-      '</section>';
+    const active=partnerBalances(),canWithdraw=active.some(x=>x.balance>0),showroom=showroomCapitalSummary();
+    const action='<button class="btn btn-primary btn-small" data-action="add-partner-payout"'+(canWithdraw?'':' disabled')+'>+ سحب من رصيد شريك</button>';
+    const showroomCard='<section class="panel section-gap"><div class="partner-balance-head"><div><h3>رأس مال المعرض</h3><p class="panel-note">يُخصم تمويل المعرض المستخدم في السيارات غير المباعة، ويُسترد تلقائيًا عند البيع مع إضافة ربح المعرض. السيارة بلا شركاء: كامل الربح للمعرض.</p></div><button class="btn btn-outline btn-small" data-action="set-showroom-capital">تحديد رأس المال الافتتاحي</button></div><div class="kpi-grid">'+kpi("رأس المال الافتتاحي",money(showroom.opening),"المبلغ المحدد للمعرض","blue")+kpi("المستخدم في المخزون",money(showroom.committed),"تكلفة غير المباع الممولة من المعرض","gold")+kpi("المسترد من المبيعات",money(showroom.earned),"تكلفة التمويل المستردة","green")+kpi("أرباح المعرض",money(showroom.profit),"حصته من الربح المحقق","green")+'</div><div class="summary-line"><strong>الرصيد المتاح للمعرض</strong><strong class="'+(showroom.balance>=0?'positive':'negative')+'">'+money(showroom.balance)+'</strong></div></section>';
+    return showroomCard+'<section class="panel section-gap"><div class="partner-balance-head"><div><h3>أرصدة الشركاء المتاحة</h3><p class="panel-note">الرصيد = رأس المال + الأرباح المستحقة حسب نسبة عائد كل شريك − المسحوبات. لا تُحتسب الأرباح قبل البيع، ولا تتجاوز ربح السيارة الفعلي.</p></div><div class="page-actions">'+action+'</div></div>'+(active.length?'<div class="summary-list">'+active.map(item=>'<div class="summary-line"><span>'+esc(item.partner)+' · رأس المال '+money(item.contributed)+' · أرباح مستحقة '+money(item.profit)+' · مسحوبات '+money(item.withdrawn)+'</span><strong class="'+(item.balance>0?'positive':(item.balance<0?'negative':''))+'">'+money(item.balance)+'</strong></div>').join('')+'</div>':empty("لم تُسجّل مساهمات شركاء بعد. أضف الشركاء ومساهماتهم في بيانات السيارة."))+'</section>';
   }
 
   function badge(text, cls) { return '<span class="badge ' + (cls || "") + '">' + esc(text) + '</span>'; }
@@ -882,9 +873,8 @@
   function carCard(c) {
     const remaining = carRemaining(c);
     const cost = amount(c.purchasePrice) + amount(c.prepCost);
-    const shareInfo = amount(c.partnerContribution) > 0
-      ? '<div class="data-cell"><span>الشريك المساهم</span><strong>' + esc(c.partnerName || "—") + '</strong></div><div class="data-cell"><span>مبلغ الشراكة</span><strong class="positive">' + money(c.partnerContribution) + '</strong></div>'
-      : '';
+    const allocations=carPartnerAllocations(c);
+    const shareInfo=allocations.length?allocations.map(x=>'<div class="data-cell"><span>الشريك · '+esc(x.partner)+'</span><strong class="positive">'+money(x.contribution)+' · عائد '+esc(x.sharePercent)+'%</strong></div>').join(''):'<div class="data-cell"><span>التمويل</span><strong>رأس مال المعرض</strong></div>';
     return '<article class="data-card"><div class="data-card-head"><div><div class="data-card-title">' + esc(c.model || "سيارة بدون اسم") + '</div><div class="data-card-sub">' + dateText(c.date) + ' · ' + esc(c.customer || "بدون عميل") + '</div></div>' + badge(c.status || "قيد البيع", c.status==="كاش"||c.status==="مباع"?"ok":(remaining>0?"warn":"gold")) + '</div><div class="data-card-grid"><div class="data-cell"><span>تكلفة الشراء والتجهيز</span><strong>' + money(cost) + '</strong></div><div class="data-cell"><span>تكلفة التجهيز</span><strong>' + money(c.prepCost) + '</strong></div><div class="data-cell"><span>سعر البيع</span><strong>' + money(c.salePrice) + '</strong></div><div class="data-cell"><span>المدفوع</span><strong class="positive">' + money(carPaid(c)) + '</strong></div><div class="data-cell"><span>المتبقي</span><strong class="' + (remaining>0?"negative":"positive") + '">' + money(remaining) + '</strong></div>' + shareInfo + '</div><div class="card-actions"><button class="btn btn-outline btn-small" data-action="edit" data-collection="cars" data-id="' + esc(c.id) + '">تعديل</button><button class="btn btn-danger btn-small" data-action="delete" data-collection="cars" data-id="' + esc(c.id) + '">حذف</button></div></article>';
   }
   function expenseCard(e) {
@@ -2075,6 +2065,7 @@
     const defaults = {id:makeId(),date:today(),saleDate:today(),dueDate:today(),status:collection==="cars"?"قيد البيع":(collection==="debts"?"قيد المتابعة":""),paidAmount:0,saleInitialPayment:0,purchasePrice:0,prepCost:0,salePrice:0,amount:0,totalAmount:0,deposited:0,withdrawn:0,profitLossAmount:0,partnerContribution:0};
     const value = Object.assign({},defaults,item||{});
     if(collection==="cars" && item && !value.saleDate) value.saleDate=value.date||today();
+    if(collection==="cars")value.partnerAllocations=carPartnerAllocations(value).map(x=>x.partner+" | "+x.contribution+" | "+x.sharePercent).join("\n");
     const fields = collection === "partnerPayouts"
       ? schema.fields.map(field => field.key === "partner"
         ? Object.assign({},field,{options:partnerBalances().filter(x=>x.balance>0).map(x=>x.partner)})
@@ -2112,51 +2103,14 @@
     $("editorDialog").showModal();
   }
 
-  function syncCarPartnerContribution(car, previousCar) {
-    const contribution = amount(car.partnerContribution);
-    state.partnerMovements = Array.isArray(state.partnerMovements) ? state.partnerMovements : [];
-    state.capital = Array.isArray(state.capital) ? state.capital : [];
-    const previousMovement = previousCar && state.partnerMovements.find(m =>
-      String(m.id) === String(previousCar.partnerMovementId || "") ||
-      (m.type === "contribution" && String(m.sourceCarId || "") === String(car.id))
-    );
-    const previousCapital = previousCar && state.capital.find(c =>
-      String(c.id) === String(previousCar.partnerCapitalId || "") ||
-      String(c.id) === String(previousMovement && previousMovement.sourceCapitalId || "") ||
-      (String(c.sourceCarId || "") === String(car.id) && c.movementType === "مساهمة شريك في شراء سيارة")
-    );
-    if (contribution <= 0) {
-      if (previousMovement) state.partnerMovements = state.partnerMovements.filter(m=>String(m.id)!==String(previousMovement.id));
-      if (previousCapital) state.capital = state.capital.filter(c=>String(c.id)!==String(previousCapital.id));
-      car.partnerMovementId = null;
-      car.partnerCapitalId = null;
-      return;
-    }
-    const partner = String(car.partnerName || "").trim();
-    if (!partner) throw new Error("اكتب اسم الشريك قبل تسجيل مبلغ الشراكة.");
-    const movementId = previousMovement ? previousMovement.id : (previousCar && previousCar.partnerMovementId ? previousCar.partnerMovementId : makeId());
-    const capitalId = previousCapital ? previousCapital.id : (previousCar && previousCar.partnerCapitalId ? previousCar.partnerCapitalId : makeId());
-    const movement = {
-      id:movementId, partner, type:"contribution", amount:contribution, date:car.date || today(),
-      note:"مساهمة في شراء السيارة " + String(car.model || ""),
-      sourceCarId:car.id, sourceCapitalId:capitalId
-    };
-    const capitalEntry = {
-      id:capitalId, date:car.date || today(), partner,
-      movementType:"مساهمة شريك في شراء سيارة",
-      deposited:contribution, withdrawn:0,
-      method:car.partnerPaymentMethod || "نقداً بالخزينة",
-      description:"مساهمة " + partner + " في شراء السيارة " + String(car.model || ""),
-      sourceCarId:car.id, linkedMovementId:movementId
-    };
-    const movementIndex = state.partnerMovements.findIndex(x=>String(x.id)===String(movementId));
-    if (movementIndex >= 0) state.partnerMovements[movementIndex] = movement;
-    else state.partnerMovements.unshift(movement);
-    const capitalIndex = state.capital.findIndex(x=>String(x.id)===String(capitalId));
-    if (capitalIndex >= 0) state.capital[capitalIndex] = capitalEntry;
-    else state.capital.unshift(capitalEntry);
-    car.partnerMovementId = movementId;
-    car.partnerCapitalId = capitalId;
+  function syncCarPartnerContribution(car,previousCar) {
+    state.partnerMovements=Array.isArray(state.partnerMovements)?state.partnerMovements:[];state.capital=Array.isArray(state.capital)?state.capital:[];
+    const links=Array.isArray(previousCar&&previousCar.partnerAllocationLinks)?previousCar.partnerAllocationLinks:[],mids=new Set(links.map(x=>String(x.movementId||"")).filter(Boolean)),cids=new Set(links.map(x=>String(x.capitalId||"")).filter(Boolean));
+    if(previousCar&&previousCar.partnerMovementId)mids.add(String(previousCar.partnerMovementId));if(previousCar&&previousCar.partnerCapitalId)cids.add(String(previousCar.partnerCapitalId));
+    if(previousCar){state.partnerMovements=state.partnerMovements.filter(m=>!mids.has(String(m.id))&&!(m.type==="contribution"&&String(m.sourceCarId||"")===String(car.id)));state.capital=state.capital.filter(x=>!cids.has(String(x.id))&&!(String(x.sourceCarId||"")===String(car.id)&&x.movementType==="مساهمة شريك في شراء سيارة"));}
+    car.partnerAllocationLinks=[];car.partnerMovementId=null;car.partnerCapitalId=null;
+    carPartnerAllocations(car).forEach(a=>{const movementId=makeId(),capitalId=makeId(),movement={id:movementId,partner:a.partner,type:"contribution",amount:a.contribution,date:car.date||today(),note:"مساهمة في شراء السيارة "+String(car.model||""),sourceCarId:car.id,sourceCapitalId:capitalId},entry={id:capitalId,date:car.date||today(),partner:a.partner,movementType:"مساهمة شريك في شراء سيارة",deposited:a.contribution,withdrawn:0,method:car.partnerPaymentMethod||"نقداً بالخزينة",description:"مساهمة "+a.partner+" في شراء السيارة "+String(car.model||""),sourceCarId:car.id,linkedMovementId:movementId};state.partnerMovements.unshift(movement);state.capital.unshift(entry);car.partnerAllocationLinks.push({partner:a.partner,movementId,capitalId});});
+    if(car.partnerAllocationLinks.length===1){car.partnerMovementId=car.partnerAllocationLinks[0].movementId;car.partnerCapitalId=car.partnerAllocationLinks[0].capitalId;}
   }
 
 
@@ -2182,10 +2136,18 @@
       : null;
     const form = new FormData($("editorForm"));
     const data = {};
-    schema.fields.forEach(field=>{
-      const raw = form.get(field.key);
-      data[field.key] = field.type==="number" ? num(raw) : String(raw || "").trim();
-    });
+    schema.fields.forEach(field=>{const raw=form.get(field.key);data[field.key]=field.type==="number"?num(raw):String(raw||"").trim();});
+    if(collection==="cars"){
+      const allocations=[];
+      for(const line of String(data.partnerAllocations||"").split(/\r?\n/).map(x=>x.trim()).filter(Boolean)){
+        const p=line.split("|").map(x=>x.trim());
+        if(p.length!==3||!p[0]||!Number.isFinite(Number(p[1]))||!Number.isFinite(Number(p[2]))||Number(p[1])<=0||Number(p[2])<=0||Number(p[2])>100){toast("صيغة الشريك غير صحيحة. كل سطر: اسم الشريك | المساهمة | نسبة العائد من 1 إلى 100.","error");return;}
+        allocations.push({partner:p[0],contribution:Number(p[1]),sharePercent:Number(p[2])});
+      }
+      if(allocations.reduce((s,x)=>s+x.sharePercent,0)>100.0001){toast("مجموع نسب عوائد الشركاء لا يمكن أن يتجاوز 100%.","error");return;}
+      if(new Set(allocations.map(x=>x.partner.toLocaleLowerCase())).size!==allocations.length){toast("لا تكرر اسم الشريك في السيارة نفسها؛ اجمع مساهمته في سطر واحد.","error");return;}
+      data.partnerAllocations=allocations;delete data.partnerName;delete data.partnerContribution;delete data.partnerSharePercent;
+    }
     const originalRecord = editingId ? (state[collection] || []).find(item=>String(item.id)===String(editingId)) : null;
     const originalDate = recordDate(originalRecord);
     const proposedDate = recordDate(data);
@@ -2271,14 +2233,7 @@
       ).reduce((sum,tx)=>sum+(tx.direction==="inflow"?amount(tx.amount):-amount(tx.amount)),0);
       if(data.status==="كاش" && Math.max(0,otherPaid)+amount(data.saleInitialPayment)<amount(data.salePrice)-0.0001) data.status="متبقي";
     }
-    if (collection==="cars" && amount(data.partnerSharePercent)>100) {
-      toast("نسبة ربح الشريك لا يمكن أن تتجاوز 100%.", "error");
-      return;
-    }
-    if (collection==="cars" && amount(data.partnerContribution)>0 && !data.partnerName) {
-      toast("اكتب اسم الشريك المساهم حتى يتم تسجيل حصته في رأس المال.", "error");
-      return;
-    }
+    if(collection==="cars"&&data.partnerAllocations.some(x=>!x.partner||x.contribution<=0||x.sharePercent<=0||x.sharePercent>100)){toast("تحقق من أسماء الشركاء ومساهماتهم ونسب العائد.","error");return;}
     if (collection==="debts" && (data.totalAmount<=0 || data.paidAmount > data.totalAmount + 0.0001)) {
       toast("يجب أن يكون إجمالي الذمة أكبر من صفر، ولا يمكن أن يتجاوز المسدد إجماليها.", "error");
       return;
@@ -2672,6 +2627,13 @@
     else if(action==="add-partner-payout") {
       if (!partnerBalances().some(x=>x.balance>0)) { toast("لا يوجد رصيد متاح للسحب حالياً.", "error"); return; }
       openEditor("partnerPayouts");
+    }
+    else if(action==="set-showroom-capital"){
+      const current=amount(state.appSettings&&state.appSettings.showroomCapitalOpening),entered=prompt("أدخل رأس مال المعرض الافتتاحي بالجنيه:",String(current));
+      if(entered===null)return;const normalized=String(entered).replace(/,/g,"").trim();
+      if(!normalized||!Number.isFinite(Number(normalized))||Number(normalized)<0){toast("أدخل مبلغًا صحيحًا لا يقل عن صفر.","error");return;}
+      const previous=clone(state);state.appSettings=Object.assign({},state.appSettings||{},{showroomCapitalOpening:Number(normalized)});
+      const ok=await saveState(false);if(!ok)state=previous;render();
     }
     else if(action==="edit")openEditor(btn.dataset.collection,btn.dataset.id);
     else if(action==="delete")await deleteItem(btn.dataset.collection,btn.dataset.id);
