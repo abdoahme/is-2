@@ -2141,7 +2141,7 @@
       const allocations=[];
       for(const line of String(data.partnerAllocations||"").split(/\r?\n/).map(x=>x.trim()).filter(Boolean)){
         const p=line.split("|").map(x=>x.trim());
-        if(p.length!==3||!p[0]||!Number.isFinite(Number(p[1]))||!Number.isFinite(Number(p[2]))||Number(p[1])<=0||Number(p[2])<=0||Number(p[2])>100){toast("صيغة الشريك غير صحيحة. كل سطر: اسم الشريك | المساهمة | نسبة العائد من 1 إلى 100.","error");return;}
+        if(p.length!==3||!p[0]||!Number.isFinite(Number(p[1]))||!Number.isFinite(Number(p[2]))||Number(p[1])<=0||Number(p[2])<0||Number(p[2])>100){toast("صيغة الشريك غير صحيحة. كل سطر: اسم الشريك | المساهمة | نسبة العائد من 1 إلى 100.","error");return;}
         allocations.push({partner:p[0],contribution:Number(p[1]),sharePercent:Number(p[2])});
       }
       if(new Set(allocations.map(x=>x.partner.toLocaleLowerCase())).size!==allocations.length){toast("لا تكرر اسم الشريك في السيارة نفسها؛ اجمع مساهمته في سطر واحد.","error");return;}
@@ -2232,7 +2232,7 @@
       ).reduce((sum,tx)=>sum+(tx.direction==="inflow"?amount(tx.amount):-amount(tx.amount)),0);
       if(data.status==="كاش" && Math.max(0,otherPaid)+amount(data.saleInitialPayment)<amount(data.salePrice)-0.0001) data.status="متبقي";
     }
-    if(collection==="cars"&&data.partnerAllocations.some(x=>!x.partner||x.contribution<=0||x.sharePercent<=0||x.sharePercent>100)){toast("تحقق من أسماء الشركاء ومساهماتهم ونسب العائد.","error");return;}
+    if(collection==="cars"&&data.partnerAllocations.some(x=>!x.partner||x.contribution<=0||x.sharePercent<0||x.sharePercent>100)){toast("تحقق من أسماء الشركاء ومساهماتهم ونسب العائد.","error");return;}
     if (collection==="debts" && (data.totalAmount<=0 || data.paidAmount > data.totalAmount + 0.0001)) {
       toast("يجب أن يكون إجمالي الذمة أكبر من صفر، ولا يمكن أن يتجاوز المسدد إجماليها.", "error");
       return;
