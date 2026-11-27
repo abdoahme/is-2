@@ -727,7 +727,7 @@
   }
 
   function currentCashBalance() {
-    const reconciliations=(cashReconciliations||[]).filter(item=>/^\\d{4}-\\d{2}-\\d{2}$/.test(String(item.reconciliation_date||""))).slice().sort((a,b)=>String(b.reconciliation_date).localeCompare(String(a.reconciliation_date)));
+    const reconciliations=(cashReconciliations||[]).filter(item=>/^\d{4}-\d{2}-\d{2}$/.test(String(item.reconciliation_date||""))).slice().sort((a,b)=>String(b.reconciliation_date).localeCompare(String(a.reconciliation_date)));
     const latest=reconciliations[0]||null;
     const movements=(financialTransactions||[]).filter(tx=>tx.payment_method==="cash"&&(!latest||String(tx.transaction_date||"")>String(latest.reconciliation_date||"")));
     const movementNet=movements.reduce((sum,tx)=>sum+(tx.direction==="inflow"?amount(tx.amount):-amount(tx.amount)),0);
