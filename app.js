@@ -850,13 +850,22 @@
       ).reduce((value,tx)=>value+(tx.category==="car_purchase"?amount(tx.amount):-amount(tx.amount)),0);
       return sum+Math.min(showroomFunded,Math.max(0,paid));
     },0);
-    // Sale proceeds and their profit are represented by collected cash/bank
-    // transactions. Do not add sold-car capital/profit again from the showroom-capital calculation.
+    // Sale collections first restore the car's acquisition cost; only the
+    // amount collected above that cost is new purchasing liquidity (profit).
+    // Reversed sale collections are netted out, and partner funds are not double-counted.
+    const soldCarCapitalReturned=(state.cars||[]).filter(isSoldCar).reduce((sum,car)=>{
+      const collected=transactions.filter(tx=>String(tx.car_id||"")===String(car.id)&&
+        ["cash","bank_transfer"].includes(tx.payment_method)&&
+        ((tx.category==="car_collection"&&tx.direction==="inflow")||
+         (tx.category==="reversal"&&["car_cash","car_sale_payment","car_collection"].includes(tx.source_type)&&tx.direction==="outflow"))
+      ).reduce((value,tx)=>value+(tx.category==="car_collection"?amount(tx.amount):-amount(tx.amount)),0);
+      return sum+Math.min(Math.max(0,amount(car.purchasePrice)+amount(car.prepCost)),Math.max(0,collected));
+    },0);
     const availableForPurchase=cash.balance+bankTransfers+showroom.opening+showroom.addedCapital-
-      capitalIncreaseLedgerNet-showroom.committed+recordedInventoryPurchases;
+      capitalIncreaseLedgerNet-showroom.committed+recordedInventoryPurchases-soldCarCapitalReturned;
     return {cash:cash.balance,bankTransfers,checks,capitalIncreaseLiquidity,partnerAvailable,
       recordedLiquidity:cash.balance+bankTransfers+capitalIncreaseLiquidity,
-      availableForPurchase,capitalIncreaseLedgerNet,recordedInventoryPurchases,
+      availableForPurchase,soldCarCapitalReturned,capitalIncreaseLedgerNet,recordedInventoryPurchases,
       hasCashReconciliation:cash.hasReconciliation,cashReconciliationDate:cash.latestDate};
   }
 
