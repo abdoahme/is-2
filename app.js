@@ -753,7 +753,9 @@
     (state.cars||[]).forEach(car=>{const d=carProfitDetails(car),partnerCapital=d.allocations.reduce((s,x)=>s+x.contribution,0),funded=Math.max(0,amount(car.purchasePrice)-partnerCapital);if(isSoldCar(car)){earned+=funded;profit+=d.showroomProfit;}else committed+=funded;});
     const addedCapital=(state.capital||[]).filter(entry=>entry.movementType==="زيادة رأس مال"&&!isLinkedCapitalEntry(entry))
       .reduce((sum,entry)=>sum+Math.max(0,amount(entry.deposited))-Math.max(0,amount(entry.withdrawn)),0);
-    return {opening,addedCapital,committed,earned,profit,balance:opening+addedCapital-committed+earned+profit};
+    // Recovered sale principal is informational only: it must not increase showroom available capital again.
+    // Purchase funding remains deducted; only the showroom's realized profit increases the balance.
+    return {opening,addedCapital,committed,earned,profit,balance:opening+addedCapital-committed+profit};
   }
 
   function renderCapitalProfitLossStatement() {
