@@ -751,7 +751,26 @@
   function showroomCapitalSummary() {
     const opening=amount(state.appSettings&&state.appSettings.showroomCapitalOpening);let committed=0,earned=0,profit=0;
     (state.cars||[]).forEach(car=>{const d=carProfitDetails(car),partnerCapital=d.allocations.reduce((s,x)=>s+x.contribution,0),funded=Math.max(0,amount(car.purchasePrice)-partnerCapital);if(isSoldCar(car)){earned+=funded;profit+=d.showroomProfit;}else committed+=funded;});
-    return {opening,committed,earned,profit,balance:opening-committed+earned+profit};
+    const addedCapital=(state.capital||[]).filter(entry=>entry.movementType==="زيادة رأس مال"&&!isLinkedCapitalEntry(entry))
+      .reduce((sum,entry)=>sum+Math.max(0,amount(entry.deposited))-Math.max(0,amount(entry.withdrawn)),0);
+    return {opening,addedCapital,committed,earned,profit,balance:opening+addedCapital-committed+earned+profit};
+  }
+
+  function renderCapitalProfitLossStatement() {
+    const entries=(state.capital||[]).filter(entry=>!isLinkedCapitalEntry(entry)&&entry.profitLossType&&amount(entry.profitLossAmount)>0);
+    const grouped=new Map();
+    entries.forEach(entry=>{
+      const name=String(entry.partner||"غير محدد").trim()||"غير محدد";
+      if(!grouped.has(name))grouped.set(name,{partner:name,profit:0,loss:0});
+      const row=grouped.get(name);
+      if(entry.profitLossType==="ربح من شخص")row.profit+=amount(entry.profitLossAmount);
+      if(entry.profitLossType==="خسارة لشخص")row.loss+=amount(entry.profitLossAmount);
+    });
+    const rows=Array.from(grouped.values()).sort((a,b)=>a.partner.localeCompare(b.partner,"ar"));
+    const totalProfit=rows.reduce((sum,row)=>sum+row.profit,0),totalLoss=rows.reduce((sum,row)=>sum+row.loss,0);
+    return '<section class="panel section-gap"><div class="partner-balance-head"><div><h3>بيان الأرباح والخسائر حسب المودع</h3><p class="panel-note">بيان مستقل عن الإيداعات وزيادات رأس المال، وكل ربح أو خسارة مرتبط باسم المودع المسجل.</p></div></div>'+
+      '<div class="kpi-grid">'+kpi("إجمالي الأرباح",money(totalProfit),"أرباح مسجلة بأسماء المودعين","green")+kpi("إجمالي الخسائر",money(totalLoss),"خسائر مسجلة بأسماء المودعين","gold")+kpi("صافي الأرباح والخسائر",money(totalProfit-totalLoss),"الأرباح ناقص الخسائر",totalProfit>=totalLoss?"green":"gold")+'</div>'+
+      (rows.length?'<div class="summary-list">'+rows.map(row=>'<div class="summary-line"><span><strong>'+esc(row.partner)+'</strong><br>أرباح: '+money(row.profit)+' · خسائر: '+money(row.loss)+'</span><strong class="'+(row.profit>=row.loss?'positive':'negative')+'">'+money(row.profit-row.loss)+'</strong></div>').join("")+'</div>':empty("لا توجد أرباح أو خسائر مسجلة بأسماء المودعين حتى الآن."))+'</section>';
   }
 
   function purchasingFundsSummary() {
@@ -921,7 +940,7 @@
   function renderPartnerBalances() {
     const active=partnerBalances(),canWithdraw=active.some(x=>x.balance>0),showroom=showroomCapitalSummary();
     const action='<button class="btn btn-primary btn-small" data-action="add-partner-payout"'+(canWithdraw?'':' disabled')+'>+ سحب من رصيد شريك</button>';
-    const showroomCard='<section class="panel section-gap"><div class="partner-balance-head"><div><h3>رأس مال المعرض</h3><p class="panel-note">يُخصم تمويل المعرض المستخدم في السيارات غير المباعة، ويُسترد تلقائيًا عند البيع مع إضافة ربح المعرض. السيارة بلا شركاء: كامل الربح للمعرض.</p></div><button class="btn btn-outline btn-small" data-action="set-showroom-capital">تحديد رأس المال الافتتاحي</button></div><div class="kpi-grid">'+kpi("رأس المال الافتتاحي",money(showroom.opening),"المبلغ المحدد للمعرض","blue")+kpi("المستخدم في المخزون",money(showroom.committed),"تكلفة غير المباع الممولة من المعرض","gold")+kpi("المسترد من المبيعات",money(showroom.earned),"تكلفة التمويل المستردة","green")+kpi("أرباح المعرض",money(showroom.profit),"حصته من الربح المحقق","green")+'</div><div class="summary-line"><strong>الرصيد المتاح للمعرض</strong><strong class="'+(showroom.balance>=0?'positive':'negative')+'">'+money(showroom.balance)+'</strong></div></section>';
+    const showroomCard='<section class="panel section-gap"><div class="partner-balance-head"><div><h3>رأس مال المعرض</h3><p class="panel-note">يُخصم تمويل المعرض المستخدم في السيارات غير المباعة، ويُسترد تلقائيًا عند البيع مع إضافة ربح المعرض. السيارة بلا شركاء: كامل الربح للمعرض.</p></div><button class="btn btn-outline btn-small" data-action="set-showroom-capital">تحديد رأس المال الافتتاحي</button></div><div class="kpi-grid">'+kpi("رأس المال الافتتاحي",money(showroom.opening),"المبلغ المحدد للمعرض","blue")+kpi("زيادات رأس المال",money(showroom.addedCapital),"إيداعات غير مرتبطة بسيارة","blue")+kpi("المستخدم في المخزون",money(showroom.committed),"تكلفة غير المباع الممولة من المعرض","gold")+kpi("المسترد من المبيعات",money(showroom.earned),"تكلفة التمويل المستردة","green")+kpi("أرباح المعرض",money(showroom.profit),"حصته من الربح المحقق","green")+'</div><div class="summary-line"><strong>الرصيد المتاح للمعرض</strong><strong class="'+(showroom.balance>=0?'positive':'negative')+'">'+money(showroom.balance)+'</strong></div></section>';
     return showroomCard+'<section class="panel section-gap"><div class="partner-balance-head"><div><h3>أرصدة الشركاء المتاحة</h3><p class="panel-note">الرصيد = رأس المال + الأرباح المستحقة حسب نسبة عائد كل شريك − المسحوبات. لا تُحتسب الأرباح قبل البيع، ولا تتجاوز ربح السيارة الفعلي.</p></div><div class="page-actions">'+action+'</div></div>'+(active.length?'<div class="summary-list">'+active.map(item=>'<div class="summary-line"><span>'+esc(item.partner)+' · رأس المال '+money(item.contributed)+' · أرباح مستحقة '+money(item.profit)+' · مسحوبات '+money(item.withdrawn)+'</span><strong class="'+(item.balance>0?'positive':(item.balance<0?'negative':''))+'">'+money(item.balance)+'</strong></div>').join('')+'</div>':empty("لم تُسجّل مساهمات شركاء بعد. أضف الشركاء ومساهماتهم في بيانات السيارة."))+'</section>';
   }
 
@@ -2089,7 +2108,7 @@
     else if (currentView === "expenses") host.innerHTML = renderCollection("expenses","مصروفات التشغيل","تسجيل ومراجعة كل المصروفات الفعلية للمعرض.",expenseCard);
     else if (currentView === "debts") host.innerHTML = renderCollection("debts","الذمم والأقساط","المبالغ المستحقة للمعرض أو المستحقة عليه.",debtCard);
     else if (currentView === "capital") host.innerHTML = renderCollection("capital","رأس المال وحركة الخزينة","الإيداعات والمسحوبات وحركة الشركاء.",capitalCard) +
-      '<section class="panel section-gap"><h3>ملخص رأس المال</h3><div class="summary-list"><div class="summary-line"><span>إجمالي الإيداعات</span><strong class="positive">' + money(metrics().capitalIn) + '</strong></div><div class="summary-line"><span>إجمالي المسحوبات</span><strong class="negative">' + money(metrics().capitalOut) + '</strong></div><div class="summary-line"><span>أرباح من أشخاص</span><strong class="positive">' + money(metrics().profitFromPeople) + '</strong></div><div class="summary-line"><span>خسائر لأشخاص</span><strong class="negative">' + money(metrics().lossToPeople) + '</strong></div><div class="summary-line"><span>صافي الحركة بعد الأرباح والخسائر</span><strong class="' + (metrics().capitalNet >= 0 ? 'positive' : 'negative') + '">' + money(metrics().capitalNet) + '</strong></div></div></section>' + renderPartnerBalances();
+      '<section class="panel section-gap"><h3>ملخص رأس المال</h3><div class="summary-list"><div class="summary-line"><span>إجمالي الإيداعات</span><strong class="positive">' + money(metrics().capitalIn) + '</strong></div><div class="summary-line"><span>إجمالي المسحوبات</span><strong class="negative">' + money(metrics().capitalOut) + '</strong></div><div class="summary-line"><span>أرباح من أشخاص</span><strong class="positive">' + money(metrics().profitFromPeople) + '</strong></div><div class="summary-line"><span>خسائر لأشخاص</span><strong class="negative">' + money(metrics().lossToPeople) + '</strong></div><div class="summary-line"><span>صافي الحركة بعد الأرباح والخسائر</span><strong class="' + (metrics().capitalNet >= 0 ? 'positive' : 'negative') + '">' + money(metrics().capitalNet) + '</strong></div></div></section>' + renderCapitalProfitLossStatement() + renderPartnerBalances();
     else if (currentView === "partners") host.innerHTML = renderPartners();
     else if (currentView === "cashbook") host.innerHTML = renderCashbook();
     else if (currentView === "inventory") host.innerHTML = renderInventory();
@@ -2565,7 +2584,7 @@
     if (currentView==="cars") rows = state.cars.map(c=>({date:c.date,model:c.model,customer:c.customer,phone:c.phone,purchasePrice:c.purchasePrice,partnerName:c.partnerName,partnerContribution:c.partnerContribution,prepCost:c.prepCost,salePrice:c.salePrice,paidAmount:carPaid(c),remaining:carRemaining(c),status:c.status,notes:c.notes}));
     else if (currentView==="expenses") rows = state.expenses.map(e=>({date:e.date,category:e.category,vehicle:(state.cars.find(car=>String(car.id)===String(e.carId||""))||{}).model||"",description:e.description,amount:e.amount,addedToVehiclePreparation:e.carPrepApplied||0,paymentMethod:e.paymentMethod,recipient:e.recipient,notes:e.notes}));
     else if (currentView==="debts") rows = state.debts.map(d=>({partyName:d.partyName,nature:d.nature,description:d.description,totalAmount:d.totalAmount,paidAmount:d.paidAmount,remaining:debtRemaining(d),dueDate:d.dueDate,status:d.status,phone:d.phone}));
-    else if (currentView==="capital") rows = state.capital.map(c=>({date:c.date,partner:c.partner,movementType:c.movementType,deposited:c.deposited,withdrawn:c.withdrawn,method:c.method,receiptNo:c.receiptNo,description:c.description}));
+    else if (currentView==="capital") rows = state.capital.map(c=>({date:c.date,partner:c.partner,movementType:c.movementType,deposited:c.deposited,withdrawn:c.withdrawn,profitLossType:c.profitLossType,profitLossAmount:c.profitLossAmount,method:c.method,receiptNo:c.receiptNo,description:c.description}));
     else if (currentView==="requests") rows = requests.map(r=>({date:r.expense_date,description:r.description,amount:r.amount,status:r.status,created_at:r.created_at}));
     else if (currentView==="receivables") {
       rows = state.cars.filter(c=>isSoldCar(c)&&carRemaining(c)>0).map(c=>({customer:c.customer,vehicle:c.model,total:c.salePrice,paid:carPaid(c),remaining:carRemaining(c)}))
