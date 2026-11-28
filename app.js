@@ -820,7 +820,44 @@
     });
     const partnerRows=partnerBalances();
     const partnerAvailable=partnerRows.reduce((sum,item)=>sum+Math.max(0,item.balance-(committedByPartner.get(item.partner)||0)),0);
-    return {cash:cash.balance,bankTransfers,checks,capitalIncreaseLiquidity,partnerAvailable,recordedLiquidity:cash.balance+bankTransfers+capitalIncreaseLiquidity,hasCashReconciliation:cash.hasReconciliation,cashReconciliationDate:cash.latestDate};
+    const showroom=showroomCapitalSummary();
+    // Capital increases already reflected in cash/bank must not be counted again
+    // through showroom capital. Include both deposits and withdrawals in this offset.
+    const capitalIncreaseLedgerNet=capitalIncreaseEntries.reduce((sum,entry)=>{
+      const method=entry.method;
+      const ledgerMethod=method==="نقداً بالخزينة"||method==="نقداً من الخزينة"?"cash":
+        (method==="تحويل بنكي"||method==="إيداع بنكي مباشر"?"bank_transfer":"");
+      if(!ledgerMethod)return sum;
+      const date=String(entry.date||"");
+      const includedByCashReconciliation=ledgerMethod==="cash"&&cash.hasReconciliation&&date<=String(cash.latestDate||"");
+      const deposited=Math.max(0,amount(entry.deposited));
+      const withdrawn=Math.max(0,amount(entry.withdrawn));
+      if(deposited>0&&(includedByCashReconciliation||hasMatchingLedgerMovement(entry,"inflow",ledgerMethod,deposited)))sum+=deposited;
+      if(withdrawn>0&&(includedByCashReconciliation||hasMatchingLedgerMovement(entry,"outflow",ledgerMethod,withdrawn)))sum-=withdrawn;
+      return sum;
+    },0);
+    // A purchase already paid from cash/bank has reduced the ledger balance.
+    // Add that paid showroom-funded portion back against the inventory commitment,
+    // so the same purchase is not deducted a second time.
+    const recordedInventoryPurchases=(state.cars||[]).filter(car=>!isSoldCar(car)).reduce((sum,car)=>{
+      const allocations=carProfitDetails(car).allocations;
+      const partnerCapital=allocations.reduce((value,item)=>value+amount(item.contribution),0);
+      const showroomFunded=Math.max(0,amount(car.purchasePrice)-partnerCapital);
+      const paid=transactions.filter(tx=>String(tx.car_id||"")===String(car.id)&&
+        ["cash","bank_transfer"].includes(tx.payment_method)&&
+        ((tx.category==="car_purchase"&&tx.direction==="outflow")||
+         (tx.category==="reversal"&&tx.source_type==="car_purchase"&&tx.direction==="inflow"))
+      ).reduce((value,tx)=>value+(tx.category==="car_purchase"?amount(tx.amount):-amount(tx.amount)),0);
+      return sum+Math.min(showroomFunded,Math.max(0,paid));
+    },0);
+    // Sale proceeds and their profit are represented by collected cash/bank
+    // transactions. Do not add sold-car capital/profit again from the showroom-capital calculation.
+    const availableForPurchase=cash.balance+bankTransfers+showroom.opening+showroom.addedCapital-
+      capitalIncreaseLedgerNet-showroom.committed+recordedInventoryPurchases;
+    return {cash:cash.balance,bankTransfers,checks,capitalIncreaseLiquidity,partnerAvailable,
+      recordedLiquidity:cash.balance+bankTransfers+capitalIncreaseLiquidity,
+      availableForPurchase,capitalIncreaseLedgerNet,recordedInventoryPurchases,
+      hasCashReconciliation:cash.hasReconciliation,cashReconciliationDate:cash.latestDate};
   }
 
   function currentCashBalance() {
@@ -1888,14 +1925,15 @@
       '<div class="summary-line"><span>إجمالي المسحوبات من رأس المال</span><strong class="negative">' + money(m.capitalOut) + '</strong></div>' +
       '<div class="summary-line"><span>صافي حركة رأس المال مع الربح والخسارة</span><strong class="' + (m.capitalNet>=0?"positive":"negative") + '">' + money(m.capitalNet) + '</strong></div>' +
       '<div class="summary-line"><span>زيادات رأس المال غير المرتبطة بسيارات (مضمنة بالفعل في رصيد رأس مال المعرض)</span><strong class="' + (showroom.addedCapital>=0?"positive":"negative") + '">' + money(showroom.addedCapital) + '</strong></div>' +
-      '<div class="summary-line"><span>السيولة المتاحة لشراء السيارات (الخزينة + البنك + رأس مال المعرض المتبقي)</span><strong class="' + (funds.cash+funds.bankTransfers+showroom.balance>=0?"positive":"negative") + '">' + money(funds.cash+funds.bankTransfers+showroom.balance) + '</strong></div>' +
+      '<div class="summary-line"><span>السيولة المتاحة لشراء السيارات (الخزينة + البنك + رأس المال غير المستثمر في السيارات)</span><strong class="' + (funds.availableForPurchase>=0?"positive":"negative") + '">' + money(funds.availableForPurchase) + '</strong></div>' +
+      '<div class="summary-line"><span>مدفوعات شراء السيارات المسجلة بالفعل (لا تُخصم مرتين)</span><strong>' + money(funds.recordedInventoryPurchases) + '</strong></div>' +
       '<div class="summary-line"><span>رصيد الخزينة النقدي</span><strong class="' + (funds.cash>=0?"positive":"negative") + '">' + money(funds.cash) + '</strong></div>' +
       '<div class="summary-line"><span>صافي التحويلات البنكية المسجلة</span><strong class="' + (funds.bankTransfers>=0?"positive":"negative") + '">' + money(funds.bankTransfers) + '</strong></div>' +
       '<div class="summary-line"><span>صافي الشيكات المسجلة (غير مضافة للسيولة)</span><strong>' + money(funds.checks) + '</strong></div>' +
       '<div class="summary-line"><span>أرصدة الشركاء المتاحة حسابيًا بعد استبعاد تمويل السيارات غير المباعة</span><strong>' + money(funds.partnerAvailable) + '</strong></div>' +
       '<div class="summary-line"><span>رأس مال المعرض المتبقي (دفترّي، ويشمل زيادات رأس المال غير المرتبطة بسيارات)</span><strong class="' + (showroom.balance>=0?"positive":"negative") + '">' + money(showroom.balance) + '</strong></div>' +
       '<div class="summary-line"><span>طلبات الموظفين المعلقة</span><strong>' + waitingRequests + '</strong></div>' +
-      '</div><p class="panel-note section-gap">السيولة المتاحة لشراء السيارات تجمع رصيد الخزينة وصافي التحويلات البنكية مع رأس مال المعرض المتبقي. زيادات رأس المال غير المرتبطة بسيارات تدخل ضمن رصيد رأس مال المعرض تلقائيًا، لذلك لا تُضاف مرة ثانية إلى الإجمالي. الشيكات غير المحصلة وأرصدة الشركاء المتاحة لا تدخل في الإجمالي. رأس مال المعرض المتبقي رصيد دفتري محسوب بعد تمويل المخزون واسترداد التكلفة والأرباح، وليس كله نقدًا موجودًا بالخزينة. لا يتوفر رصيد افتتاحي مستقل للبنك في السجلات الحالية.</p></section>';
+      '</div><p class="panel-note section-gap">السيولة المتاحة لشراء السيارات تجمع رصيد الخزينة والبنك مع رأس المال غير المستثمر في السيارات والزيادات غير المرتبطة بسيارات. عند شراء سيارة يُخصم الجزء الممول من المعرض؛ وإذا كان سداد الشراء مسجلًا بالفعل في الخزينة أو البنك فلا يُخصم مرة ثانية. عند بيع السيارة تدخل المتحصلات والأرباح من خلال المقبوضات المسجلة بالخزينة أو البنك فقط، ولا يُضاف رصيد السيارة المباعة مرة أخرى من بيان رأس المال. المبالغ غير المحصلة والشيكات غير المحصلة لا تُعامل كسيولة جاهزة للشراء.</p></section>';
     return heading("لوحة المتابعة المالية","نظرة واضحة على نشاط المعرض، مع شرح تفصيلي لكل نتيجة.",'<button class="btn btn-outline btn-small" data-action="print">طباعة الملخص</button>') +
       '<div class="kpi-grid">' +
       kpi("إيرادات المبيعات",money(m.sales),m.sold + " سيارة بحالة بيع مسجلة","blue") +
@@ -1903,7 +1941,7 @@
       kpi("صافي نتيجة النشاط",money(m.netProfit),"بعد مصروفات التشغيل والربح والخسارة",m.netProfit>=0?"green":"red") +
       kpi("مصروفات التشغيل",money(m.expenses),"مجموع بنود المصروفات","red") +
       kpi("المبالغ المتبقية",money(m.totalReceivables),"سيارات وذمم مستحقة للمعرض","gold") +
-      kpi("السيولة المتاحة لشراء السيارات",money(funds.cash+funds.bankTransfers+showroom.balance),"الخزينة + البنك + رأس مال المعرض المتبقي شامل زيادات رأس المال غير المرتبطة بسيارات",(funds.cash+funds.bankTransfers+showroom.balance)>=0?"green":"red") +
+      kpi("السيولة المتاحة لشراء السيارات",money(funds.availableForPurchase),"الخزينة + البنك + رأس المال غير المستثمر في السيارات والزيادات غير المرتبطة بسيارات",(funds.availableForPurchase)>=0?"green":"red") +
       '</div>' +
       '<div class="dashboard-info-strip"><span>عدد السيارات: <b>' + m.cars + '</b></span><span>سيارات قيد البيع: <b>' + m.inventory + '</b></span><span>السيارات المباعة: <b>' + m.sold + '</b></span><span>تكلفة إجمالي السيارات المسجلة: <b>' + money(m.purchase) + '</b></span></div>' +
       dashboardDetails +
